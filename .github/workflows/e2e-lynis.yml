@@ -1,0 +1,71 @@
+---
+# Teste ponta a ponta em uma VM REAL (o próprio runner do GitHub, que é
+# descartável): Lynis antes → hardening → idempotência → Lynis depois.
+# O resultado aparece no "Summary" do job e os relatórios ficam como artifact.
+name: E2E Lynis score
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # toda segunda: detecta regressão causada por updates do Ubuntu/Lynis
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    env:
+      ANSIBLE_FORCE_COLOR: "1"
+      INVENTORY: tests/e2e/inventory.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install tooling
+        run: |
+          pip install -r requirements.txt
+          ansible-galaxy collection install -r requirements.yml
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-apt
+
+      - name: Lynis BEFORE
+        run: ansible-playbook -i "$INVENTORY" playbooks/audit.yml -e lynis_label=before
+
+      - name: Harden
+        run: ansible-playbook -i "$INVENTORY" playbooks/site.yml
+
+      - name: Idempotence (second run must report changed=0)
+        run: |
+          ansible-playbook -i "$INVENTORY" playbooks/site.yml | tee idempotence.log
+          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' idempotence.log
+
+      - name: Audit mode on a compliant host (--check must report changed=0)
+        run: |
+          ansible-playbook -i "$INVENTORY" playbooks/site.yml --check | tee check.log
+          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' check.log
+
+      - name: Lynis AFTER
+        run: ansible-playbook -i "$INVENTORY" playbooks/audit.yml -e lynis_label=after
+
+      - name: Publish comparison
+        if: always()
+        run: |
+          python scripts/lynis_report.py --reports-dir reports --output reports/lynis-comparison.md --summary \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Lynis reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lynis-${{ matrix.os }}
+          path: reports/
+          retention-days: 30

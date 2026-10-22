@@ -1,0 +1,30 @@
+---
+ufw_ssh_port: "{{ hardening_ssh_port | default(22) }}"
+# limit = allow + rate limit nativo do ufw (bloqueia >= 6 conexões em 30s por IP).
+ufw_ssh_rule: limit
+# Restrinja a origem do SSH à VPN/IP do escritório sempre que possível.
+ufw_ssh_allowed_sources:
+  - any
+
+# Porta pela qual o Ansible está conectado AGORA. Ela é liberada durante a
+# execução para que trocar a porta do SSH nunca derrube a sessão atual.
+ufw_ssh_current_port: "{{ ansible_port | default(22) }}"
+# Portas SSH antigas removidas do firewall — mas só quando a conexão atual já
+# NÃO estiver passando por elas (fluxo de 2 fases: bootstrap → steady state).
+ufw_ssh_legacy_ports:
+  - 22
+
+ufw_default_incoming: deny # CIS 4.1.7
+ufw_default_outgoing: allow # CIS 4.1.5 (mude para deny + ufw_rules de saída em ambientes restritos)
+ufw_default_routed: deny
+ufw_logging: low
+ufw_ipv6: true
+
+# Regras extras da aplicação, ex.:
+#   - { rule: allow, port: "443", proto: tcp, comment: "https" }
+#   - { rule: allow, port: "9100", proto: tcp, from_ip: "10.0.0.0/8", comment: "node_exporter" }
+ufw_rules: []
+
+# Em containers (Molecule) não há netfilter próprio: as regras são gravadas,
+# mas o firewall não é ativado.
+ufw_enable: "{{ not (common_is_container | default(false) | bool) }}"

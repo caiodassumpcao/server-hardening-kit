@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Referências: CIS Ubuntu Linux Benchmark (seções 1.5 e 3.3) e Lynis KRNL-6000.
+{% for param in sysctl_hardening_effective %}
+
+# {{ param.cis | default('custom') }}
+{{ '-' if param.optional | default(false) else '' }}{{ param.name }} = {{ param.value }}
+{% endfor %}

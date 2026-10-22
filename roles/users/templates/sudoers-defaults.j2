@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+# CIS 5.2.2 — sudo só executa comandos em um pseudo-terminal (mitiga injeção de TTY).
+Defaults use_pty
+# CIS 5.2.3 — trilha de auditoria dedicada (também monitorada pelo auditd).
+Defaults logfile="{{ users_sudo_logfile }}"
+# CIS 5.2.6 — reautenticação após N minutos.
+Defaults timestamp_timeout={{ users_sudo_timestamp_timeout }}
+Defaults passwd_tries={{ users_sudo_passwd_tries }}
+Defaults lecture="once"

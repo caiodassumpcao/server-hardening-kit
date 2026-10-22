@@ -1,0 +1,5 @@
+# Força LF em tudo: templates com CRLF quebram sshd_config, sudoers e scripts
+# quando o repositório é clonado no Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

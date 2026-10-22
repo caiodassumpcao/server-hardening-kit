@@ -1,0 +1,52 @@
+---
+# Grupos. Os valores globais hardening_* (inventário) permitem que roles
+# diferentes concordem no mesmo nome sem depender umas das outras.
+users_admin_group: "{{ hardening_admin_group | default('sysadmins') }}"
+users_ssh_group: "{{ hardening_ssh_group | default('sshusers') }}"
+# CIS 5.2.7 — grupo vazio: ninguém usa "su", escalada só via sudo (auditável).
+users_su_group: sugroup
+users_default_shell: /bin/bash
+
+# Administradores humanos: sudo COM senha (CIS 5.2.4).
+# Sem password_hash o usuário entra via chave mas não consegue usar sudo.
+#   - name: caio
+#     comment: "Caio - SRE"
+#     ssh_keys: ["ssh-ed25519 AAAA... caio@laptop"]
+#     password_hash: "{{ vault_caio_password_hash }}"   # openssl passwd -6
+#     state: present
+users_admins: []
+
+# Conta de automação (Ansible/CI). Única exceção documentada ao CIS 5.2.4:
+# NOPASSWD, mas apenas chave, sem senha, e opcionalmente restrita por IP de origem.
+users_automation:
+  enabled: false
+  name: ansible
+  ssh_keys: []
+  allowed_from: [] # ex.: ["203.0.113.10", "10.0.0.0/8"] → from="..." no authorized_keys
+
+# "sudo restrito": contas de serviço que só podem rodar comandos específicos.
+#   - name: deployer
+#     ssh_keys: ["ssh-ed25519 AAAA... ci@github"]
+#     sudo_commands:
+#       - /usr/bin/systemctl restart nginx
+#       - /usr/bin/systemctl reload nginx
+users_restricted: []
+
+# Contas a remover (ex.: ex-colaboradores).
+users_absent: []
+
+# CIS 5.2.x — defaults globais do sudo.
+users_sudo_logfile: /var/log/sudo.log
+users_sudo_timestamp_timeout: 15
+users_sudo_passwd_tries: 3
+
+# Arquivos do sudoers.d criados pelo provedor de nuvem que concedem NOPASSWD
+# ao usuário padrão. Só são removidos quando a execução NÃO está usando esse
+# usuário (senão o próprio Ansible perderia o sudo no meio da execução).
+users_bootstrap_user: ubuntu
+users_purge_sudoers_files:
+  - 90-cloud-init-users
+
+# Relata (sem falhar) entradas NOPASSWD / !authenticate não gerenciadas pelo kit.
+users_audit_sudoers: true
+users_fail_on_sudoers_findings: false

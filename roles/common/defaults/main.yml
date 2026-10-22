@@ -1,0 +1,46 @@
+---
+# Distribuições suportadas e testadas no CI.
+common_supported_releases:
+  - "22.04"
+  - "24.04"
+
+# Em VMs recém-criadas o cloud-init ainda está rodando (e segura o lock do dpkg);
+# esperar evita falhas intermitentes no apt. Ver também module_defaults no site.yml.
+common_wait_for_cloud_init: true
+common_apt_cache_valid_time: 3600
+
+# Pacotes que fecham sugestões do Lynis sem efeito colateral relevante.
+common_packages:
+  - apparmor
+  - apparmor-utils
+  - apt-show-versions # Lynis PKGS-7394
+  - debsums # Lynis PKGS-7370
+  - libpam-tmpdir # Lynis DEB-0280
+
+# CIS 2.2.x — clientes de serviços legados/inseguros.
+common_packages_absent:
+  - nis
+  - rsh-client
+  - talk
+  - telnet
+  - inetutils-telnet
+  - ftp
+  - tnftp
+
+# CIS 1.1.1.x (filesystems raros) e 3.2.x (protocolos de rede raros).
+# "udf" fica fora de propósito: o Azure usa UDF no ISO de provisionamento.
+common_disabled_kernel_modules:
+  - cramfs
+  - freevxfs
+  - hfs
+  - hfsplus
+  - jffs2
+  - usb-storage
+  - dccp
+  - tipc
+  - rds
+  - sctp
+
+common_login_banner: |
+  Authorized access only. All activity on this system is logged and monitored.
+  Disconnect immediately if you are not an authorized user.

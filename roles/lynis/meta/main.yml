@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: lynis
+  author: Caio Rodrigues
+  description: Instala o Lynis (repositório assinado da CISOfy), executa a auditoria e coleta o relatório
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - audit
+    - lynis
+dependencies: []

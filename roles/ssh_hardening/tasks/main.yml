@@ -1,0 +1,82 @@
+---
+- name: Ensure OpenSSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+- name: Anti-lockout guard
+  ansible.builtin.include_tasks: lockout_guard.yml
+  when:
+    - ssh_hardening_lockout_guard | bool
+    - not ansible_check_mode
+
+- name: Ensure privilege separation directory exists (required by sshd -t)
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Switch from socket activation to ssh.service
+  ansible.builtin.include_tasks: socket_activation.yml
+  when:
+    - ssh_hardening_disable_socket_activation | bool
+    - not ansible_check_mode or 'openssh-server' in ansible_facts['packages']
+
+- name: CIS 5.1.5 | Configure SSH warning banner
+  ansible.builtin.copy:
+    dest: /etc/issue.net
+    content: "{{ ssh_hardening_banner_text }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: CIS 5.1.x | Deploy hardened sshd drop-in (first match wins → 00- prefix)
+  ansible.builtin.template:
+    src: 00-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd
+
+- name: CIS 5.1.1 | Restrict permissions on sshd_config
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Find SSH host keys
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: ssh_host_*_key*
+  register: ssh_hardening_host_key_files
+
+- name: CIS 5.1.2 / 5.1.3 | Restrict permissions on SSH host keys
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ '0644' if item.path.endswith('.pub') else '0600' }}"
+  loop: "{{ ssh_hardening_host_key_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Harden Diffie-Hellman moduli
+  ansible.builtin.include_tasks: moduli.yml
+  when: ssh_hardening_harden_moduli | bool
+
+- name: Validate the full effective sshd configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Ensure ssh.service is enabled and running
+  ansible.builtin.systemd_service:
+    name: ssh
+    enabled: true
+    state: started
+  when: not ansible_check_mode or 'openssh-server' in ansible_facts['packages']

@@ -1,0 +1,23 @@
+---
+# Por padrão só patches de SEGURANÇA são automáticos; updates funcionais
+# continuam passando pelo processo normal de mudança.
+unattended_upgrades_origins:
+  - "${distro_id}:${distro_codename}-security"
+  - "${distro_id}ESMApps:${distro_codename}-apps-security"
+  - "${distro_id}ESM:${distro_codename}-infra-security"
+
+unattended_upgrades_package_blacklist: []
+
+unattended_upgrades_remove_unused_dependencies: true
+unattended_upgrades_remove_unused_kernels: true
+
+# Reboot automático é uma decisão de disponibilidade: deixe false em produção
+# sem redundância e true em frotas atrás de load balancer.
+unattended_upgrades_automatic_reboot: false
+unattended_upgrades_automatic_reboot_with_users: false
+unattended_upgrades_automatic_reboot_time: "03:30"
+
+unattended_upgrades_mail: "" # ex.: ops@empresa.com (requer MTA configurado)
+unattended_upgrades_mail_report: on-change
+
+unattended_upgrades_manage_timers: "{{ not (common_is_container | default(false) | bool) }}"

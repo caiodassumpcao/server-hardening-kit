@@ -1,0 +1,50 @@
+---
+# Tudo aqui é somente leitura (check_mode: false + changed_when: false).
+- name: Select audit architectures for this host
+  ansible.builtin.set_fact:
+    auditd_arches: "{{ ['b64', 'b32'] if ansible_facts['architecture'] == 'x86_64' else ['b64'] }}"
+
+- name: Read native syscall table
+  ansible.builtin.command: ausyscall --dump
+  register: auditd_ausyscall_b64
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Read 32-bit compat syscall table
+  ansible.builtin.command: ausyscall i386 --dump
+  register: auditd_ausyscall_b32
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: "'b32' in auditd_arches"
+
+- name: Build syscall tables (first line of ausyscall output is a header)
+  ansible.builtin.set_fact:
+    auditd_syscall_table: >-
+      {{ {} | combine({'b64': auditd_ausyscall_b64.stdout_lines[1:] | map('split') | map('last') | list}
+                       if auditd_ausyscall_b64.rc | default(1) == 0 else {})
+            | combine({'b32': auditd_ausyscall_b32.stdout_lines[1:] | map('split') | map('last') | list}
+                       if auditd_ausyscall_b32.rc | default(1) == 0 else {}) }}
+
+- name: CIS 6.2.3.6 | Find setuid/setgid binaries
+  ansible.builtin.command:
+    argv: "{{ ['find'] + auditd_privileged_search_paths + ['-xdev', '-type', 'f', '-perm', '/6000'] }}"
+  register: auditd_privileged_find
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check which audited paths exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    get_checksum: false
+  loop: >-
+    {{ (auditd_watch_rules | map(attribute='path') | map('dirname')
+        + auditd_exec_rules | map(attribute='path')) | unique | sort }}
+  register: auditd_path_stats
+
+- name: Build the set of existing paths and privileged commands
+  ansible.builtin.set_fact:
+    auditd_existing_paths: "{{ auditd_path_stats.results | selectattr('stat.exists') | map(attribute='item') | list }}"
+    auditd_privileged_commands: "{{ auditd_privileged_find.stdout_lines | default([]) | unique | sort }}"

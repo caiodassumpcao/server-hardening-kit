@@ -1,0 +1,21 @@
+---
+# Inventário do teste E2E: o próprio runner do GitHub Actions é o alvo.
+all:
+  children:
+    hardening:
+      hosts:
+        localhost:
+          ansible_connection: local
+          ansible_python_interpreter: /usr/bin/python3
+      vars:
+        hardening_ssh_port: 2222
+        users_automation:
+          enabled: true
+          name: ansible
+          ssh_keys:
+            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8OL78x1Wn5qEynlSjjUn23jFW5novLo2V5LdU7aenv molecule-test-only
+        users_admins: []
+        # O runner não usa GRUB para nada relevante e não será reiniciado.
+        auditd_grub_config: false
+        # O sudo do usuário "runner" não pode ser removido no meio do job.
+        users_purge_sudoers_files: []

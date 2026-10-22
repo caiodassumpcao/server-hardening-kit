@@ -1,0 +1,42 @@
+---
+# Antes de desligar senha e root, garante que existe pelo menos um usuário que
+# conseguirá entrar com chave. É a diferença entre "hardening" e "lockout".
+- name: Read group database
+  ansible.builtin.getent:
+    database: group
+
+- name: Collect members of the SSH allow groups
+  ansible.builtin.set_fact:
+    ssh_hardening_allowed_members: >-
+      {{ ssh_hardening_allow_groups
+         | map('extract', ansible_facts['getent_group'])
+         | select('defined') | map('last') | map('split', ',')
+         | flatten | select | unique | list }}
+
+- name: Fail early if nobody is allowed to log in over SSH
+  ansible.builtin.assert:
+    that: ssh_hardening_allowed_members | length > 0
+    fail_msg: >-
+      LOCKOUT GUARD: no members in {{ ssh_hardening_allow_groups }}. Define users_admins or
+      users_automation (with ssh_keys) in the inventory before hardening SSH.
+    quiet: true
+
+- name: Read home directories of allowed members
+  ansible.builtin.getent:
+    database: passwd
+
+- name: Check authorized_keys of allowed members
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['getent_passwd'][item][4] }}/.ssh/authorized_keys"
+  loop: "{{ ssh_hardening_allowed_members }}"
+  register: ssh_hardening_authorized_keys
+
+- name: Fail early if no allowed member has an authorized key
+  ansible.builtin.assert:
+    that: >-
+      ssh_hardening_authorized_keys.results
+      | selectattr('stat.exists') | selectattr('stat.size', 'gt', 0) | list | length > 0
+    fail_msg: >-
+      LOCKOUT GUARD: none of {{ ssh_hardening_allowed_members }} has a non-empty authorized_keys.
+      Password and root login would be disabled with no way back in.
+    quiet: true

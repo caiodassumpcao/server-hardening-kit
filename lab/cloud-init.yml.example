@@ -1,0 +1,14 @@
+#cloud-config
+# VM de laboratório para o Multipass:
+#   cp lab/cloud-init.yml.example lab/cloud-init.yml   (e cole sua chave pública)
+#   multipass launch 24.04 --name hardening-lab --cpus 2 --memory 2G --disk 10G --cloud-init lab/cloud-init.yml
+users:
+  - default
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA...SUA_CHAVE_PUBLICA... voce@maquina
+package_update: true
+packages:
+  - python3

@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: auditd
+  author: Caio Rodrigues
+  description: Trilha de auditoria do kernel com regras CIS orientadas a dados, imutáveis e multi-arquitetura (CIS 6.2)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - auditd
+    - cis
+dependencies: []

@@ -1,0 +1,123 @@
+---
+- name: CIS 4.1.1 | Ensure ufw is installed
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: CIS 4.1.2 | Ensure iptables-persistent is not installed with ufw
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: absent
+    purge: true
+
+- name: Firewall rules
+  when: not ansible_check_mode or 'ufw' in ansible_facts['packages']
+  block:
+    - name: Enable IPv6 support in ufw
+      ansible.builtin.lineinfile:
+        path: /etc/default/ufw
+        regexp: "^IPV6="
+        line: "IPV6={{ 'yes' if ufw_ipv6 | bool else 'no' }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    # O ufw aplica /etc/ufw/sysctl.conf ao subir, e esse arquivo define
+    # log_martians=0 — sobrescrevendo o CIS 3.3.9 aplicado via /etc/sysctl.d.
+    # Apontar para /etc/sysctl.conf mantém o sysctl.d como fonte de verdade.
+    - name: Keep /etc/sysctl.d authoritative over ufw kernel tunables
+      ansible.builtin.lineinfile:
+        path: /etc/default/ufw
+        regexp: "^IPT_SYSCTL="
+        line: IPT_SYSCTL=/etc/sysctl.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: CIS 4.1.4 | Allow inbound traffic on loopback
+      community.general.ufw:
+        rule: allow
+        direction: in
+        interface: lo
+
+    - name: CIS 4.1.4 | Allow outbound traffic on loopback
+      community.general.ufw:
+        rule: allow
+        direction: out
+        interface: lo
+
+    - name: CIS 4.1.4 | Deny spoofed loopback traffic from other interfaces
+      community.general.ufw:
+        rule: deny
+        direction: in
+        from_ip: "{{ item }}"
+      loop:
+        - 127.0.0.0/8
+        - ::1
+
+    - name: CIS 4.1.6 | Allow SSH on the hardened port and on the current connection port
+      community.general.ufw:
+        rule: "{{ ufw_ssh_rule }}"
+        port: "{{ item.1 | string }}"
+        proto: tcp
+        from_ip: "{{ item.0 }}"
+        comment: ssh
+      loop: "{{ ufw_ssh_allowed_sources | product([ufw_ssh_port | int, ufw_ssh_current_port | int] | unique) | list }}"
+      loop_control:
+        label: "{{ item.0 }} -> {{ item.1 }}/tcp"
+
+    - name: Remove legacy SSH ports (only those we are NOT connected through)
+      community.general.ufw:
+        rule: "{{ ufw_ssh_rule }}"
+        port: "{{ item.1 | string }}"
+        proto: tcp
+        from_ip: "{{ item.0 }}"
+        delete: true
+      loop: >-
+        {{ ufw_ssh_allowed_sources
+           | product(ufw_ssh_legacy_ports | map('int') | difference([ufw_ssh_port | int, ufw_ssh_current_port | int]))
+           | list }}
+      loop_control:
+        label: "{{ item.0 }} -> {{ item.1 }}/tcp"
+
+    - name: CIS 4.1.6 | Apply application rules
+      community.general.ufw:
+        rule: "{{ item.rule | default('allow') }}"
+        direction: "{{ item.direction | default('in') }}"
+        port: "{{ item.port | default(omit) }}"
+        proto: "{{ item.proto | default('tcp') }}"
+        from_ip: "{{ item.from_ip | default('any') }}"
+        to_ip: "{{ item.to_ip | default('any') }}"
+        comment: "{{ item.comment | default(omit) }}"
+        delete: "{{ item.delete | default(false) }}"
+      loop: "{{ ufw_rules }}"
+      loop_control:
+        label: "{{ item.comment | default(item.port | default('rule')) }}"
+
+    - name: CIS 4.1.7 | Configure default policies
+      community.general.ufw:
+        default: "{{ item.policy }}"
+        direction: "{{ item.direction }}"
+      loop:
+        - { direction: incoming, policy: "{{ ufw_default_incoming }}" }
+        - { direction: outgoing, policy: "{{ ufw_default_outgoing }}" }
+        - { direction: routed, policy: "{{ ufw_default_routed }}" }
+
+    # Com o ufw inativo o módulo não consegue ler o nível atual e sempre
+    # reportaria "changed"; por isso só roda com o firewall ativo.
+    - name: Configure ufw logging
+      community.general.ufw:
+        logging: "{{ ufw_logging }}"
+      when: ufw_enable | bool
+
+    - name: CIS 4.1.3 | Enable ufw
+      community.general.ufw:
+        state: enabled
+      when: ufw_enable | bool
+
+    - name: CIS 4.1.3 | Ensure ufw service is enabled at boot
+      ansible.builtin.systemd_service:
+        name: ufw
+        enabled: true
+        state: started
+      when: ufw_enable | bool

@@ -1,0 +1,13 @@
+---
+# cisofy = repositório oficial (versão atual, com testes recentes)
+# distro  = pacote do Ubuntu (mais antigo, mas sem repositório de terceiro)
+lynis_install_method: cisofy
+lynis_repo_url: https://packages.cisofy.com/community/lynis/deb/
+lynis_repo_key_url: https://packages.cisofy.com/keys/cisofy-software-public.key
+
+# Rótulo da execução: "before", "after", "2026-10-weekly"...
+lynis_label: manual
+lynis_remote_dir: /var/log/lynis-runs
+# Relatórios brutos ficam fora do Git (contêm hostnames, IPs, pacotes).
+lynis_local_dir: "{{ playbook_dir }}/../reports"
+lynis_timeout: 1800

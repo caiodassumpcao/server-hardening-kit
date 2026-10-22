@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: unattended_upgrades
+  author: Caio Rodrigues
+  description: Patches de segurança automáticos com política explícita de origens e reboot (CIS 1.2.2.1)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - patching
+    - cis
+dependencies: []

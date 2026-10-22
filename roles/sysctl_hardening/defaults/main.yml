@@ -1,0 +1,54 @@
+---
+# Hosts com Docker/Kubernetes/VPN PRECISAM de forwarding: defina true neles.
+sysctl_hardening_ip_forward: false
+
+# Ordem lexical: "99-zz-" vence o 99-sysctl.conf (→ /etc/sysctl.conf) e drop-ins
+# de pacotes, evitando "drift" eterno causado por outro arquivo sobrescrevendo.
+sysctl_hardening_file: /etc/sysctl.d/99-zz-hardening.conf
+
+# optional: true → prefixo "-" no arquivo (systemd-sysctl ignora a chave se o
+# kernel não a suportar, em vez de falhar o boot/aplicação).
+sysctl_hardening_params:
+  # --- Processo / memória (CIS 1.5.x) ---
+  - { name: kernel.randomize_va_space, value: 2, cis: "1.5.1" }
+  - { name: kernel.yama.ptrace_scope, value: 1, cis: "1.5.2" }
+  - { name: fs.suid_dumpable, value: 0, cis: "1.5.3" }
+  - { name: kernel.dmesg_restrict, value: 1, cis: "Lynis KRNL-6000" }
+  - { name: kernel.kptr_restrict, value: 2, cis: "Lynis KRNL-6000" }
+  - { name: kernel.sysrq, value: 0, cis: "Lynis KRNL-6000" }
+  - { name: kernel.unprivileged_bpf_disabled, value: 1, cis: "Lynis KRNL-6000", optional: true }
+  - { name: net.core.bpf_jit_harden, value: 2, cis: "Lynis KRNL-6000", optional: true }
+  - { name: fs.protected_hardlinks, value: 1, cis: "Lynis KRNL-6000" }
+  - { name: fs.protected_symlinks, value: 1, cis: "Lynis KRNL-6000" }
+  - { name: fs.protected_fifos, value: 2, cis: "Lynis KRNL-6000" }
+  - { name: fs.protected_regular, value: 2, cis: "Lynis KRNL-6000" }
+  # --- Rede (CIS 3.3.x) ---
+  - { name: net.ipv4.ip_forward, value: "{{ sysctl_hardening_ip_forward | bool | int }}", cis: "3.3.1" }
+  - { name: net.ipv6.conf.all.forwarding, value: "{{ sysctl_hardening_ip_forward | bool | int }}", cis: "3.3.1" }
+  - { name: net.ipv4.conf.all.send_redirects, value: 0, cis: "3.3.2" }
+  - { name: net.ipv4.conf.default.send_redirects, value: 0, cis: "3.3.2" }
+  - { name: net.ipv4.icmp_ignore_bogus_error_responses, value: 1, cis: "3.3.3" }
+  - { name: net.ipv4.icmp_echo_ignore_broadcasts, value: 1, cis: "3.3.4" }
+  - { name: net.ipv4.conf.all.accept_redirects, value: 0, cis: "3.3.5" }
+  - { name: net.ipv4.conf.default.accept_redirects, value: 0, cis: "3.3.5" }
+  - { name: net.ipv6.conf.all.accept_redirects, value: 0, cis: "3.3.5" }
+  - { name: net.ipv6.conf.default.accept_redirects, value: 0, cis: "3.3.5" }
+  - { name: net.ipv4.conf.all.secure_redirects, value: 0, cis: "3.3.6" }
+  - { name: net.ipv4.conf.default.secure_redirects, value: 0, cis: "3.3.6" }
+  - { name: net.ipv4.conf.all.rp_filter, value: 1, cis: "3.3.7" }
+  - { name: net.ipv4.conf.default.rp_filter, value: 1, cis: "3.3.7" }
+  - { name: net.ipv4.conf.all.accept_source_route, value: 0, cis: "3.3.8" }
+  - { name: net.ipv4.conf.default.accept_source_route, value: 0, cis: "3.3.8" }
+  - { name: net.ipv6.conf.all.accept_source_route, value: 0, cis: "3.3.8" }
+  - { name: net.ipv6.conf.default.accept_source_route, value: 0, cis: "3.3.8" }
+  - { name: net.ipv4.conf.all.log_martians, value: 1, cis: "3.3.9" }
+  - { name: net.ipv4.conf.default.log_martians, value: 1, cis: "3.3.9" }
+  - { name: net.ipv4.tcp_syncookies, value: 1, cis: "3.3.10" }
+  - { name: net.ipv6.conf.all.accept_ra, value: 0, cis: "3.3.11" }
+  - { name: net.ipv6.conf.default.accept_ra, value: 0, cis: "3.3.11" }
+
+# Parâmetros adicionais/overrides do inventário (mesmo formato).
+sysctl_hardening_extra_params: []
+
+# Em containers o /proc/sys é compartilhado com o host: só gravamos o arquivo.
+sysctl_hardening_apply: "{{ not (common_is_container | default(false) | bool) }}"

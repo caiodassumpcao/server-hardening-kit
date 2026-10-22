@@ -1,0 +1,32 @@
+---
+- name: Merge default and extra kernel parameters (extra wins on name clash)
+  ansible.builtin.set_fact:
+    sysctl_hardening_effective: >-
+      {{ (sysctl_hardening_params | rejectattr('name', 'in', sysctl_hardening_extra_params | map(attribute='name') | list) | list)
+         + sysctl_hardening_extra_params }}
+
+- name: CIS 1.5.x / 3.3.x | Persist kernel parameters
+  ansible.builtin.template:
+    src: sysctl-hardening.conf.j2
+    dest: "{{ sysctl_hardening_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply sysctl
+
+# O arquivo pode estar correto e o valor em runtime não (ex.: alguém rodou
+# "sysctl -w"). Esta checagem detecta o drift — e em --check o reporta como "changed".
+- name: Detect runtime drift of kernel parameters
+  ansible.builtin.command:
+    argv: [sysctl, -n, "{{ item.name }}"]
+  loop: "{{ sysctl_hardening_effective }}"
+  loop_control:
+    label: "{{ item.name }} = {{ item.value }}"
+  register: sysctl_hardening_runtime
+  check_mode: false
+  failed_when: false
+  changed_when:
+    - sysctl_hardening_runtime.rc == 0
+    - sysctl_hardening_runtime.stdout | trim != item.value | string
+  notify: Apply sysctl
+  when: sysctl_hardening_apply | bool

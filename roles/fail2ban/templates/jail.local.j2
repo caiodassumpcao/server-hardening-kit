@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# jail.local sobrescreve jail.conf e jail.d/defaults-debian.conf.
+
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1{% for net in fail2ban_ignoreip %} {{ net }}{% endfor %}
+
+bantime  = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+{% if fail2ban_bantime_increment | bool %}
+bantime.increment = true
+bantime.factor    = 2
+bantime.maxtime   = {{ fail2ban_bantime_maxtime }}
+{% endif %}
+
+# journald: o Ubuntu não grava mais auth.log por padrão em todas as imagens.
+backend = systemd
+banaction = {{ fail2ban_banaction }}
+banaction_allports = {{ fail2ban_banaction_allports }}
+
+[sshd]
+enabled  = true
+port     = {{ fail2ban_ssh_port }}
+mode     = {{ fail2ban_sshd_mode }}
+maxretry = {{ fail2ban_sshd_maxretry }}
+
+{% if fail2ban_recidive_enabled | bool %}
+[recidive]
+enabled  = true
+backend  = auto
+logpath  = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+bantime  = 1w
+findtime = 1d
+maxretry = 5
+{% endif %}

@@ -1,0 +1,27 @@
+---
+# Procedimento oficial do Ubuntu Server Guide para desfazer o socket activation
+# (Ubuntu >= 22.10). Em 22.04 o ssh.socket já vem desabilitado: tudo aqui é no-op.
+- name: Remove socket-activation drop-ins left by older releases
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/ssh.service.d/00-socket.conf
+    - /etc/systemd/system/ssh.socket.d/addresses.conf
+  notify: Restart sshd
+
+- name: Disable ssh.socket
+  ansible.builtin.systemd_service:
+    name: ssh.socket
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  notify: Restart sshd
+
+# Sem isso haveria uma janela sem ninguém escutando na porta até o handler
+# rodar; se o ControlPersist expirasse nesse meio-tempo, o Ansible se trancaria fora.
+- name: Start ssh.service immediately (no window without a listener)
+  ansible.builtin.systemd_service:
+    name: ssh
+    enabled: true
+    state: started

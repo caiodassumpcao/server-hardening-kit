@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+# EXCEÇÃO DOCUMENTADA ao CIS 5.2.4 (ver docs/DECISIONS.md, ADR-003).
+# Conta sem senha, acesso exclusivamente por chave{{ ' restrita a ' ~ (users_automation.allowed_from | join(', ')) if users_automation.allowed_from | default([]) | length > 0 else '' }}.
+{{ users_automation.name }} ALL=(ALL:ALL) NOPASSWD: ALL

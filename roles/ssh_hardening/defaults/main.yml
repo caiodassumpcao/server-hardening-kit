@@ -1,0 +1,59 @@
+---
+ssh_hardening_port: "{{ hardening_ssh_port | default(22) }}"
+ssh_hardening_listen_addresses: [] # vazio = todas as interfaces
+ssh_hardening_address_family: any # any | inet | inet6
+
+# CIS 5.1.4 — somente membros destes grupos podem autenticar.
+ssh_hardening_allow_groups:
+  - "{{ hardening_ssh_group | default('sshusers') }}"
+
+# Proteção anti-lockout: aborta se nenhum membro dos grupos permitidos
+# tiver authorized_keys antes de desligar senha/root.
+ssh_hardening_lockout_guard: true
+
+# Ubuntu >= 22.10 usa socket activation (ssh.socket). Voltamos para o
+# ssh.service tradicional para que Port/ListenAddress do sshd_config sejam a
+# única fonte de verdade em 22.04 e 24.04 (ver docs/DECISIONS.md, ADR-002).
+ssh_hardening_disable_socket_activation: true
+
+ssh_hardening_host_keys:
+  - /etc/ssh/ssh_host_ed25519_key
+  - /etc/ssh/ssh_host_rsa_key
+
+# Algoritmos modernos compatíveis com OpenSSH 8.9 (22.04) e 9.6 (24.04).
+ssh_hardening_kex_algorithms:
+  - sntrup761x25519-sha512@openssh.com
+  - curve25519-sha256
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group16-sha512
+  - diffie-hellman-group18-sha512
+  - diffie-hellman-group-exchange-sha256
+ssh_hardening_ciphers:
+  - chacha20-poly1305@openssh.com
+  - aes256-gcm@openssh.com
+  - aes128-gcm@openssh.com
+  - aes256-ctr
+  - aes192-ctr
+  - aes128-ctr
+ssh_hardening_macs:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+  - umac-128-etm@openssh.com
+
+# Remove grupos Diffie-Hellman < 3071 bits de /etc/ssh/moduli (recomendação ssh-audit).
+ssh_hardening_harden_moduli: true
+
+ssh_hardening_log_level: VERBOSE # CIS 5.1.14 (registra fingerprint da chave usada)
+ssh_hardening_login_grace_time: 60 # CIS 5.1.13
+ssh_hardening_max_auth_tries: 3 # CIS 5.1.16
+ssh_hardening_max_sessions: 4 # CIS 5.1.17
+ssh_hardening_max_startups: "10:30:60" # CIS 5.1.18
+ssh_hardening_client_alive_interval: 300 # CIS 5.1.7
+ssh_hardening_client_alive_count_max: 2 # CIS 5.1.7
+
+# CIS 5.1.8 — desliga X11, agent e TCP forwarding. Desative se o time usa
+# túneis SSH (ex.: acesso a banco via bastion).
+ssh_hardening_disable_forwarding: true
+
+ssh_hardening_banner_text: |
+  Authorized access only. All activity on this system is logged and monitored.

@@ -1,0 +1,10 @@
+---
+# systemd-sysctl reaplica todo o /etc/sysctl.d e entende o prefixo "-"
+# (chave opcional), ao contrário de "sysctl -p" em versões antigas do procps.
+- name: Apply sysctl
+  ansible.builtin.systemd_service:
+    name: systemd-sysctl
+    state: restarted
+  when:
+    - sysctl_hardening_apply | bool
+    - not ansible_check_mode

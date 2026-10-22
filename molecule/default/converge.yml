@@ -1,0 +1,4 @@
+---
+# Testa exatamente o mesmo playbook usado em produção.
+- name: Converge
+  ansible.builtin.import_playbook: ../../playbooks/site.yml

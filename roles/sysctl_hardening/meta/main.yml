@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: sysctl_hardening
+  author: Caio Rodrigues
+  description: Parâmetros de kernel e rede (CIS 1.5 / 3.3) com detecção de drift em runtime
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - sysctl
+    - cis
+dependencies: []

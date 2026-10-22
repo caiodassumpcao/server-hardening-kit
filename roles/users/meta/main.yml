@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: users
+  author: Caio Rodrigues
+  description: Contas administrativas, conta de automação, sudo restrito e restrição de su (CIS 5.2)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - sudo
+    - cis
+dependencies: []

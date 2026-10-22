@@ -1,0 +1,17 @@
+---
+# Perfil mais rigoroso do ansible-lint: exige FQCN, nomes em todas as tasks,
+# prefixo de variáveis por role, permissões explícitas em arquivos etc.
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .github/
+  - .devcontainer/
+  - reports/
+  - collections/
+
+mock_roles: []
+skip_list: []
+warn_list: []
+
+offline: false

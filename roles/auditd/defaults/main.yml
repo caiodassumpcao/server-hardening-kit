@@ -1,0 +1,115 @@
+---
+auditd_manage_service: "{{ not (common_is_container | default(false) | bool) }}"
+
+# CIS 6.2.1.3 / 6.2.1.4 — auditoria desde o boot (antes do auditd subir).
+auditd_grub_config: "{{ not (common_is_container | default(false) | bool) }}"
+auditd_backlog_limit: 8192
+
+# CIS 6.2.2.x — retenção. Os valores de *_action seguem o CIS; "single" coloca
+# o host em modo monousuário se o disco de logs encher (prioriza integridade da
+# trilha sobre disponibilidade). Avalie para o seu contexto — ver DECISIONS.md.
+auditd_conf:
+  max_log_file: 32 # MB por arquivo (CIS 6.2.2.1)
+  num_logs: 10
+  max_log_file_action: keep_logs # CIS 6.2.2.2
+  space_left_action: email # CIS 6.2.2.4
+  action_mail_acct: root
+  admin_space_left_action: single # CIS 6.2.2.4
+  disk_full_action: single # CIS 6.2.2.3
+  disk_error_action: single # CIS 6.2.2.3
+
+# CIS 6.2.3.20 — regras imutáveis (-e 2): nem root altera sem reboot.
+auditd_immutable: true
+
+# UID_MIN do Ubuntu (usuários humanos).
+auditd_uid_min: 1000
+
+# CIS 6.2.3.6 — onde procurar binários setuid/setgid.
+auditd_privileged_search_paths:
+  - /
+auditd_extra_rules: []
+
+# ---------------------------------------------------------------------------
+# Regras como DADOS (não texto): o template filtra syscalls que não existem na
+# arquitetura (ex.: aarch64 não tem open/creat/chmod) e caminhos inexistentes,
+# então o mesmo conjunto carrega sem erro em x86_64 e ARM.
+# ---------------------------------------------------------------------------
+auditd_watch_rules:
+  - { cis: "6.2.3.1", path: /etc/sudoers, perm: wa, key: scope }
+  - { cis: "6.2.3.1", path: /etc/sudoers.d, perm: wa, key: scope }
+  - { cis: "6.2.3.3", path: /var/log/sudo.log, perm: wa, key: sudo_log_file }
+  - { cis: "6.2.3.4", path: /etc/localtime, perm: wa, key: time-change }
+  - { cis: "6.2.3.5", path: /etc/issue, perm: wa, key: system-locale }
+  - { cis: "6.2.3.5", path: /etc/issue.net, perm: wa, key: system-locale }
+  - { cis: "6.2.3.5", path: /etc/hosts, perm: wa, key: system-locale }
+  - { cis: "6.2.3.5", path: /etc/networks, perm: wa, key: system-locale }
+  - { cis: "6.2.3.5", path: /etc/network, perm: wa, key: system-locale }
+  - { cis: "6.2.3.5", path: /etc/netplan, perm: wa, key: system-locale }
+  - { cis: "6.2.3.8", path: /etc/group, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/passwd, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/gshadow, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/shadow, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/security/opasswd, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/nsswitch.conf, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/pam.conf, perm: wa, key: identity }
+  - { cis: "6.2.3.8", path: /etc/pam.d, perm: wa, key: identity }
+  - { cis: "6.2.3.11", path: /var/run/utmp, perm: wa, key: session }
+  - { cis: "6.2.3.11", path: /var/log/wtmp, perm: wa, key: session }
+  - { cis: "6.2.3.11", path: /var/log/btmp, perm: wa, key: session }
+  - { cis: "6.2.3.12", path: /var/log/lastlog, perm: wa, key: logins }
+  - { cis: "6.2.3.12", path: /var/run/faillock, perm: wa, key: logins }
+  - { cis: "6.2.3.14", path: /etc/apparmor, perm: wa, key: MAC-policy }
+  - { cis: "6.2.3.14", path: /etc/apparmor.d, perm: wa, key: MAC-policy }
+  - { cis: "custom", path: /etc/ssh/sshd_config, perm: wa, key: sshd_config }
+  - { cis: "custom", path: /etc/ssh/sshd_config.d, perm: wa, key: sshd_config }
+
+auditd_syscall_rules:
+  - cis: "6.2.3.2"
+    syscalls: [execve]
+    fields: "-C euid!=uid -F auid!=unset"
+    key: user_emulation
+  - cis: "6.2.3.4"
+    syscalls: [adjtimex, settimeofday, clock_settime]
+    key: time-change
+  - cis: "6.2.3.5"
+    syscalls: [sethostname, setdomainname]
+    key: system-locale
+  - cis: "6.2.3.7"
+    syscalls: [creat, open, openat, truncate, ftruncate]
+    fields: "-F exit=-EACCES -F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: access
+  - cis: "6.2.3.7"
+    syscalls: [creat, open, openat, truncate, ftruncate]
+    fields: "-F exit=-EPERM -F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: access
+  - cis: "6.2.3.9"
+    syscalls: [chmod, fchmod, fchmodat]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: perm_mod
+  - cis: "6.2.3.9"
+    syscalls: [chown, fchown, lchown, fchownat]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: perm_mod
+  - cis: "6.2.3.9"
+    syscalls: [setxattr, lsetxattr, fsetxattr, removexattr, lremovexattr, fremovexattr]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: perm_mod
+  - cis: "6.2.3.10"
+    syscalls: [mount]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: mounts
+  - cis: "6.2.3.13"
+    syscalls: [unlink, unlinkat, rename, renameat]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: delete
+  - cis: "6.2.3.19"
+    syscalls: [init_module, finit_module, delete_module]
+    fields: "-F auid>={{ auditd_uid_min }} -F auid!=unset"
+    key: kernel_modules
+
+auditd_exec_rules:
+  - { cis: "6.2.3.15", path: /usr/bin/chcon, key: perm_chng }
+  - { cis: "6.2.3.16", path: /usr/bin/setfacl, key: perm_chng }
+  - { cis: "6.2.3.17", path: /usr/bin/chacl, key: perm_chng }
+  - { cis: "6.2.3.18", path: /usr/sbin/usermod, key: usermod }
+  - { cis: "6.2.3.19", path: /usr/bin/kmod, key: kernel_modules }

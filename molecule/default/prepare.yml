@@ -1,0 +1,27 @@
+---
+- name: Prepare container
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    # O kernel do host não tem audit por namespace: o auditd não sobe em
+    # container e o postinst do pacote falharia. policy-rc.d (101 = "não
+    # inicie") bloqueia apenas o auto-start do auditd durante o apt install.
+    - name: Prevent auditd from auto-starting during package installation
+      ansible.builtin.copy:
+        dest: /usr/sbin/policy-rc.d
+        content: |
+          #!/bin/sh
+          case "$1" in
+            auditd) exit 101 ;;
+          esac
+          exit 0
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create a legacy account that the converge must remove
+      ansible.builtin.user:
+        name: olduser
+        state: present

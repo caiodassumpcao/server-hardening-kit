@@ -1,0 +1,207 @@
+---
+# Verifica o ESTADO RESULTANTE (o que o sshd/ufw/sudo realmente enxergam),
+# não apenas se os arquivos foram copiados.
+- name: Verify hardening baseline
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    # ------------------------------------------------------------- SSH -----
+    - name: Read effective sshd configuration
+      ansible.builtin.command: sshd -T
+      register: verify_sshd
+      changed_when: false
+
+    - name: Assert effective SSH settings
+      ansible.builtin.assert:
+        that:
+          - "'port 2222' in verify_sshd.stdout_lines"
+          - "'permitrootlogin no' in verify_sshd.stdout_lines"
+          - "'passwordauthentication no' in verify_sshd.stdout_lines"
+          - "'kbdinteractiveauthentication no' in verify_sshd.stdout_lines"
+          - "'permitemptypasswords no' in verify_sshd.stdout_lines"
+          - "'maxauthtries 3' in verify_sshd.stdout_lines"
+          - "'allowgroups sshusers' in verify_sshd.stdout_lines"
+          - "'x11forwarding no' in verify_sshd.stdout_lines"
+          - "'loglevel VERBOSE' in verify_sshd.stdout_lines"
+          - verify_sshd.stdout is search('(?m)^ciphers chacha20-poly1305@openssh.com')
+        fail_msg: "Effective sshd config is not hardened: {{ verify_sshd.stdout_lines }}"
+        quiet: true
+
+    - name: Stat sshd_config
+      ansible.builtin.stat:
+        path: /etc/ssh/sshd_config
+      register: verify_sshd_config
+
+    - name: Assert sshd_config permissions (CIS 5.1.1)
+      ansible.builtin.assert:
+        that:
+          - verify_sshd_config.stat.mode == '0600'
+          - verify_sshd_config.stat.pw_name == 'root'
+        quiet: true
+
+    - name: Gather service state
+      ansible.builtin.service_facts:
+
+    - name: Assert ssh.service is running and ssh.socket is not (ADR-002)
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['ssh.service']['state'] == 'running'
+          - ansible_facts['services']['ssh.socket'] is not defined
+            or ansible_facts['services']['ssh.socket']['state'] != 'running'
+        quiet: true
+
+    # ------------------------------------------------------------- UFW -----
+    - name: Read ufw rules
+      ansible.builtin.command: ufw show added
+      register: verify_ufw
+      changed_when: false
+
+    - name: Read ufw defaults
+      ansible.builtin.slurp:
+        src: /etc/default/ufw
+      register: verify_ufw_defaults
+
+    - name: Assert firewall rules and policies
+      ansible.builtin.assert:
+        that:
+          - verify_ufw.stdout is search('ufw limit (in )?2222/tcp')
+          - verify_ufw.stdout is search('ufw allow (in )?443/tcp')
+          - verify_ufw.stdout is search('ufw allow in on lo')
+          - verify_ufw.stdout is search('ufw deny (in )?from 127\.0\.0\.0/8')
+          - (verify_ufw_defaults.content | b64decode) is search('DEFAULT_INPUT_POLICY="DROP"')
+          - (verify_ufw_defaults.content | b64decode) is search('IPT_SYSCTL=/etc/sysctl.conf')
+        fail_msg: "{{ verify_ufw.stdout }}"
+        quiet: true
+
+    # -------------------------------------------------------- fail2ban -----
+    - name: Query fail2ban sshd jail
+      ansible.builtin.command: fail2ban-client status sshd
+      register: verify_f2b
+      changed_when: false
+      retries: 5
+      delay: 3
+      until: verify_f2b.rc == 0
+
+    - name: Read fail2ban jail configuration
+      ansible.builtin.command: fail2ban-client get sshd maxretry
+      register: verify_f2b_maxretry
+      changed_when: false
+
+    - name: Assert fail2ban sshd jail is enforcing
+      ansible.builtin.assert:
+        that: verify_f2b_maxretry.stdout | trim == '3'
+        quiet: true
+
+    # ------------------------------------------------ unattended-upgrades --
+    - name: Dump apt configuration
+      ansible.builtin.command: apt-config dump
+      register: verify_apt
+      changed_when: false
+
+    - name: Assert unattended-upgrades policy
+      ansible.builtin.assert:
+        that:
+          - >-
+            'APT::Periodic::Unattended-Upgrade "1";' in verify_apt.stdout
+          - >-
+            'Unattended-Upgrade::Allowed-Origins:: "${distro_id}:${distro_codename}-security";' in verify_apt.stdout
+          # o "#clear" precisa ter descartado a origem não-security herdada do 50unattended-upgrades
+          - >-
+            'Unattended-Upgrade::Allowed-Origins:: "${distro_id}:${distro_codename}";' not in verify_apt.stdout
+          - >-
+            'Unattended-Upgrade::Automatic-Reboot "false";' in verify_apt.stdout
+        quiet: true
+
+    # ---------------------------------------------------------- sysctl -----
+    - name: Read sysctl hardening file
+      ansible.builtin.slurp:
+        src: /etc/sysctl.d/99-zz-hardening.conf
+      register: verify_sysctl
+
+    - name: Assert kernel parameters are persisted
+      ansible.builtin.assert:
+        that:
+          - (verify_sysctl.content | b64decode) is search('(?m)^net.ipv4.tcp_syncookies = 1$')
+          - (verify_sysctl.content | b64decode) is search('(?m)^net.ipv4.conf.all.log_martians = 1$')
+          - (verify_sysctl.content | b64decode) is search('(?m)^kernel.randomize_va_space = 2$')
+          - (verify_sysctl.content | b64decode) is search('(?m)^-kernel.unprivileged_bpf_disabled = 1$')
+        quiet: true
+
+    # ---------------------------------------------------------- auditd -----
+    - name: Read generated audit rules
+      ansible.builtin.slurp:
+        src: /etc/audit/rules.d/50-hardening.rules
+      register: verify_audit_rules
+
+    - name: Count privileged-command audit rules (CIS 6.2.3.6)
+      ansible.builtin.command: grep -c -- '-k privileged' /etc/audit/rules.d/50-hardening.rules
+      register: verify_privileged_count
+      changed_when: false
+
+    - name: Assert audit rules
+      ansible.builtin.assert:
+        that:
+          - (verify_audit_rules.content | b64decode) is search('-w /etc/sudoers -p wa -k scope')
+          - (verify_audit_rules.content | b64decode) is search('-k user_emulation')
+          - (verify_audit_rules.content | b64decode) is search('-F path=/usr/bin/sudo -F perm=x')
+          - verify_privileged_count.stdout | int > 5
+        quiet: true
+
+    - name: Assert immutable flag
+      ansible.builtin.command: grep -qx -- '-e 2' /etc/audit/rules.d/99-finalize.rules
+      changed_when: false
+
+    # ----------------------------------------------------- users / sudo -----
+    - name: Validate full sudoers syntax
+      ansible.builtin.command: visudo -c
+      changed_when: false
+
+    - name: List sudo privileges of the restricted account
+      ansible.builtin.command: sudo -l -U deployer
+      register: verify_sudo_deployer
+      changed_when: false
+
+    - name: List sudo privileges of the admin account
+      ansible.builtin.command: sudo -l -U alice
+      register: verify_sudo_alice
+      changed_when: false
+
+    - name: Read accounts
+      ansible.builtin.getent:
+        database: passwd
+
+    - name: Read group membership
+      ansible.builtin.getent:
+        database: group
+
+    - name: Read automation authorized_keys
+      ansible.builtin.slurp:
+        src: /home/ansible/.ssh/authorized_keys
+      register: verify_ansible_keys
+
+    - name: Assert accounts and sudo policy
+      ansible.builtin.assert:
+        that:
+          # sudo restrito: só o comando permitido, sem ALL
+          - >-
+            verify_sudo_deployer.stdout is search('NOPASSWD:\s*/usr/bin/systemctl restart nginx')
+          - >-
+            verify_sudo_deployer.stdout is not search('\(ALL( : ALL)?\) (NOPASSWD: )?ALL')
+          # admin: sudo completo, mas COM senha
+          - >-
+            verify_sudo_alice.stdout is search('\(ALL : ALL\) ALL')
+          - verify_sudo_alice.stdout is not search('NOPASSWD')
+          # conta antiga removida
+          - "'olduser' not in ansible_facts['getent_passwd']"
+          # todos os acessos SSH passam pelo grupo
+          - "'alice' in ansible_facts['getent_group']['sshusers'][2].split(',')"
+          - "'ansible' in ansible_facts['getent_group']['sshusers'][2].split(',')"
+          # chave da automação restrita por origem
+          - (verify_ansible_keys.content | b64decode) is search('^from="10.0.0.0/8" ssh-ed25519 ')
+        quiet: true
+
+    - name: Assert su is restricted (CIS 5.2.7)
+      ansible.builtin.command: grep -Eq '^auth\s+required\s+pam_wheel\.so use_uid group=sugroup' /etc/pam.d/su
+      changed_when: false

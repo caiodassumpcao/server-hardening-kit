@@ -1,0 +1,112 @@
+---
+- name: Assert target is a supported Ubuntu LTS release
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - ansible_facts['distribution_version'] in common_supported_releases
+    fail_msg: >-
+      Unsupported target {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
+      Supported: Ubuntu {{ common_supported_releases | join(', ') }}.
+    quiet: true
+
+- name: Detect whether the target is a container (Molecule/CI)
+  ansible.builtin.set_fact:
+    common_is_container: >-
+      {{ ansible_facts['virtualization_role'] == 'guest'
+         and ansible_facts['virtualization_type'] in ['docker', 'container', 'containerd', 'podman', 'lxc'] }}
+
+- name: Check whether cloud-init is present
+  ansible.builtin.stat:
+    path: /usr/bin/cloud-init
+  register: common_cloud_init_bin
+
+- name: Wait for cloud-init to finish (avoids dpkg lock races on fresh VMs)
+  ansible.builtin.command: cloud-init status --wait
+  register: common_cloud_init
+  changed_when: false
+  # rc 2 = concluído com avisos recuperáveis (cloud-init >= 23.4)
+  failed_when: common_cloud_init.rc not in [0, 2]
+  check_mode: false
+  timeout: 900
+  when:
+    - common_wait_for_cloud_init | bool
+    - not common_is_container | bool
+    - common_cloud_init_bin.stat.exists
+
+- name: Refresh apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ common_apt_cache_valid_time }}"
+
+- name: Gather installed packages (used for check-mode guards in other roles)
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Install baseline hardening packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: CIS 2.2.x | Remove insecure legacy client packages
+  ansible.builtin.apt:
+    name: "{{ common_packages_absent }}"
+    state: absent
+    purge: true
+
+- name: Ensure modprobe drop-in directory exists (absent on minimal images)
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: CIS 1.1.1.x / 3.2.x | Disable unused filesystems and network protocols
+  ansible.builtin.template:
+    src: modprobe-hardening.conf.j2
+    dest: /etc/modprobe.d/60-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: CIS 1.5.3 | Restrict core dumps (limits.d)
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/60-hardening.conf
+    content: |
+      # Managed by server-hardening-kit (CIS 1.5.3)
+      *    hard    core    0
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: CIS 1.5.3 | Disable systemd-coredump storage (only if systemd-coredump is installed)
+  community.general.ini_file:
+    path: /etc/systemd/coredump.conf
+    section: Coredump
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { option: Storage, value: none }
+    - { option: ProcessSizeMax, value: "0" }
+  when: "'systemd-coredump' in ansible_facts['packages']"
+
+- name: CIS 1.6.x | Configure local login warning banner
+  ansible.builtin.copy:
+    dest: /etc/issue
+    content: "{{ common_login_banner }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: CIS 1.3.1.2 | Ensure AppArmor is enabled
+  ansible.builtin.systemd_service:
+    name: apparmor
+    enabled: true
+    state: started
+  when:
+    - not common_is_container | bool
+    - not ansible_check_mode or 'apparmor' in ansible_facts['packages']

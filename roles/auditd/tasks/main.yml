@@ -1,0 +1,69 @@
+---
+- name: CIS 6.2.1.1 | Install auditd
+  ansible.builtin.apt:
+    name:
+      - auditd
+      - audispd-plugins
+    state: present
+
+- name: CIS 6.2.2.x | Configure audit log retention and failure actions
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^\s*{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop: "{{ auditd_conf | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} = {{ item.value }}"
+  when: not ansible_check_mode or 'auditd' in ansible_facts['packages']
+  notify: Reload auditd configuration
+
+- name: Discover rule inputs (syscall tables, privileged binaries, existing paths)
+  ansible.builtin.include_tasks: discover.yml
+
+- name: CIS 6.2.3.x | Deploy audit rules
+  ansible.builtin.template:
+    src: 50-hardening.rules.j2
+    dest: /etc/audit/rules.d/50-hardening.rules
+    owner: root
+    group: root
+    mode: "0640"
+  when: not ansible_check_mode or 'auditd' in ansible_facts['packages']
+  notify: Load audit rules
+
+- name: CIS 6.2.3.20 | Make the audit configuration immutable
+  ansible.builtin.copy:
+    dest: /etc/audit/rules.d/99-finalize.rules
+    content: |
+      ## Managed by server-hardening-kit (CIS 6.2.3.20)
+      ## Regras imutáveis: qualquer alteração exige reboot.
+      -e 2
+    owner: root
+    group: root
+    mode: "0640"
+  when:
+    - auditd_immutable | bool
+    - not ansible_check_mode or 'auditd' in ansible_facts['packages']
+  notify: Load audit rules
+
+- name: Remove immutability flag when disabled
+  ansible.builtin.file:
+    path: /etc/audit/rules.d/99-finalize.rules
+    state: absent
+  when: not auditd_immutable | bool
+  notify: Load audit rules
+
+- name: CIS 6.2.1.2 | Ensure auditd is enabled and running
+  ansible.builtin.systemd_service:
+    name: auditd
+    enabled: true
+    state: started
+  when:
+    - auditd_manage_service | bool
+    - not ansible_check_mode or 'auditd' in ansible_facts['packages']
+
+- name: Configure kernel boot parameters for auditing
+  ansible.builtin.include_tasks: grub.yml
+  when: auditd_grub_config | bool

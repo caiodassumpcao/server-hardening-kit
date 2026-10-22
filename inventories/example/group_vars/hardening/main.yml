@@ -1,0 +1,56 @@
+---
+# =============================================================================
+# Variáveis GLOBAIS (compartilhadas entre roles)
+# =============================================================================
+hardening_ssh_port: 2222
+hardening_ssh_group: sshusers
+hardening_admin_group: sysadmins
+# IPs/redes que nunca serão banidos pelo fail2ban (seu IP fixo, VPN, bastion).
+hardening_trusted_networks: []
+# Reinicia automaticamente quando necessário (só na porta definitiva).
+hardening_reboot: false
+
+# =============================================================================
+# Usuários (roles/users)
+# =============================================================================
+# Conta usada pelo Ansible depois do bootstrap. Use a SUA chave pública.
+users_automation:
+  enabled: true
+  name: ansible
+  ssh_keys:
+    - "ssh-ed25519 AAAA...SUA_CHAVE_PUBLICA... voce@maquina"
+  # Restringe de onde essa chave pode ser usada (recomendado em produção):
+  allowed_from: []
+
+# Administradores humanos: entram com chave, sudo exige senha.
+users_admins:
+  - name: caio
+    comment: "Caio - Admin"
+    ssh_keys:
+      - "ssh-ed25519 AAAA...SUA_CHAVE_PUBLICA... voce@maquina"
+    # Hash gerado com: openssl passwd -6   (guardado no vault.yml)
+    password_hash: "{{ vault_admin_password_hash }}"
+
+# Exemplo de "sudo restrito": pode apenas reiniciar o nginx.
+users_restricted: []
+#  - name: deployer
+#    ssh_keys: ["ssh-ed25519 AAAA... github-actions"]
+#    sudo_commands:
+#      - /usr/bin/systemctl restart nginx
+#      - /usr/bin/systemctl reload nginx
+
+# =============================================================================
+# Firewall (roles/ufw)
+# =============================================================================
+# Restringir o SSH ao seu IP é a medida de maior impacto contra brute force.
+ufw_ssh_allowed_sources:
+  - any
+ufw_rules: []
+#  - { rule: allow, port: "80", proto: tcp, comment: "http" }
+#  - { rule: allow, port: "443", proto: tcp, comment: "https" }
+
+# =============================================================================
+# Kernel (roles/sysctl_hardening)
+# =============================================================================
+# true se o host roda Docker/Kubernetes/VPN.
+sysctl_hardening_ip_forward: false

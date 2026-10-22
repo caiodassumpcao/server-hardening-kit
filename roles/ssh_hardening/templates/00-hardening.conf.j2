@@ -1,0 +1,69 @@
+# {{ ansible_managed }}
+#
+# O sshd usa o PRIMEIRO valor encontrado para cada diretiva. Este drop-in tem
+# prefixo 00- para vencer o /etc/ssh/sshd_config e drop-ins do provedor de nuvem
+# (ex.: 50-cloud-init.conf, que costuma reativar PasswordAuthentication).
+
+# --- Rede -------------------------------------------------------------------
+Port {{ ssh_hardening_port }}
+AddressFamily {{ ssh_hardening_address_family }}
+{% for address in ssh_hardening_listen_addresses %}
+ListenAddress {{ address }}
+{% endfor %}
+
+# --- Criptografia -------------------------------------------------------------
+{% for key in ssh_hardening_host_keys %}
+HostKey {{ key }}
+{% endfor %}
+# CIS 5.1.12 / 5.1.6 / 5.1.15
+KexAlgorithms {{ ssh_hardening_kex_algorithms | join(',') }}
+Ciphers {{ ssh_hardening_ciphers | join(',') }}
+MACs {{ ssh_hardening_macs | join(',') }}
+
+# --- Autenticação -------------------------------------------------------------
+# CIS 5.1.20
+PermitRootLogin no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+# CIS 5.1.19
+PermitEmptyPasswords no
+# CIS 5.1.9 / 5.1.10 / 5.1.11
+GSSAPIAuthentication no
+KerberosAuthentication no
+HostbasedAuthentication no
+IgnoreRhosts yes
+# CIS 5.1.22 (necessário para account/session do PAM, ex.: pam_tmpdir)
+UsePAM yes
+StrictModes yes
+# CIS 5.1.4
+AllowGroups {{ ssh_hardening_allow_groups | join(' ') }}
+
+# --- Limites ------------------------------------------------------------------
+# CIS 5.1.13 / 5.1.16 / 5.1.17 / 5.1.18 / 5.1.7
+LoginGraceTime {{ ssh_hardening_login_grace_time }}
+MaxAuthTries {{ ssh_hardening_max_auth_tries }}
+MaxSessions {{ ssh_hardening_max_sessions }}
+MaxStartups {{ ssh_hardening_max_startups }}
+ClientAliveInterval {{ ssh_hardening_client_alive_interval }}
+ClientAliveCountMax {{ ssh_hardening_client_alive_count_max }}
+TCPKeepAlive no
+
+# --- Superfície de ataque -----------------------------------------------------
+{% if ssh_hardening_disable_forwarding | bool %}
+# CIS 5.1.8
+DisableForwarding yes
+{% endif %}
+X11Forwarding no
+AllowAgentForwarding no
+PermitTunnel no
+# CIS 5.1.21
+PermitUserEnvironment no
+Compression no
+UseDNS no
+
+# --- Logging / banner ---------------------------------------------------------
+# CIS 5.1.14 / 5.1.5
+LogLevel {{ ssh_hardening_log_level }}
+Banner /etc/issue.net

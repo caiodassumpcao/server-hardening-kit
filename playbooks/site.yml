@@ -1,0 +1,112 @@
+---
+# Playbook principal.
+#   Modo enforce : make harden            (ou make bootstrap na 1ª execução)
+#   Modo auditoria: make check            (= --check --diff; nada é alterado)
+- name: Harden Ubuntu servers
+  hosts: "{{ hardening_target | default('hardening') }}"
+  become: true
+  gather_facts: true
+
+  # VMs recém-criadas rodam apt/unattended-upgrades no primeiro boot e seguram
+  # o lock do dpkg; esperar em vez de falhar torna a 1ª execução confiável.
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: "{{ hardening_apt_lock_timeout | default(600) }}"
+
+  pre_tasks:
+    - name: Announce execution mode
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'AUDIT MODE (--check): nothing will be changed. Every task reported as "changed"
+          is a control that is NOT compliant on this host.'
+          if ansible_check_mode else
+          'ENFORCE MODE: applying hardening baseline.' }}
+
+  roles:
+    # "always": as demais roles dependem dos fatos coletados aqui
+    # (package_facts, detecção de container), inclusive com --tags.
+    - role: common
+      tags: [common, always]
+    - role: users
+      tags: [users, sudo]
+    # ufw ANTES do ssh: a nova porta já está liberada quando o sshd reinicia.
+    - role: ufw
+      tags: [ufw, firewall]
+    - role: ssh_hardening
+      tags: [ssh]
+    - role: fail2ban
+      tags: [fail2ban]
+    - role: unattended_upgrades
+      tags: [updates]
+    - role: sysctl_hardening
+      tags: [sysctl, kernel]
+    - role: auditd
+      tags: [auditd]
+
+  post_tasks:
+    - name: Run pending handlers before post-deploy validation
+      ansible.builtin.meta: flush_handlers
+
+    # Prova, a partir do controller, que uma sessão NOVA consegue entrar na
+    # porta nova com a conta de automação — antes de você fechar o terminal.
+    - name: Validate SSH access on the hardened port
+      when:
+        - not ansible_check_mode
+        - hardening_validate_ssh | default(true) | bool
+        - ansible_connection | default('ssh') in ['ssh', 'smart', 'paramiko']
+      tags: [ssh, ufw, validate]
+      block:
+        - name: Wait for sshd on the hardened port (from the controller)
+          ansible.builtin.wait_for:
+            host: "{{ ansible_host | default(inventory_hostname) }}"
+            port: "{{ hardening_ssh_port | default(22) | int }}"
+            timeout: 30
+          delegate_to: localhost
+          become: false
+
+        - name: Open a fresh SSH session as the steady-state user
+          vars:
+            hardening_validation_user: >-
+              {{ users_automation.name if (users_automation.enabled | default(false) | bool)
+                 else ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}
+            hardening_validation_key: "{{ ansible_ssh_private_key_file | default('') }}"
+          ansible.builtin.command:
+            argv: >-
+              {{ ['ssh', '-p', hardening_ssh_port | default(22) | string,
+                  '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                  '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ControlPath=none']
+                 + (['-i', hardening_validation_key] if hardening_validation_key | length > 0 else [])
+                 + [hardening_validation_user ~ '@' ~ (ansible_host | default(inventory_hostname)), 'true'] }}
+          delegate_to: localhost
+          become: false
+          changed_when: false
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /run/reboot-required
+      register: hardening_reboot_required
+      tags: [always]
+
+    # Só reinicia quando a conexão atual já usa a porta definitiva; no bootstrap
+    # (conectado pela porta 22) o reboot religaria o sshd apenas na porta nova
+    # e o módulo reboot não conseguiria reconectar.
+    - name: Reboot to activate kernel/audit changes (opt-in via hardening_reboot=true)
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        msg: Reboot initiated by server-hardening-kit
+      when:
+        - hardening_reboot | default(false) | bool
+        - hardening_reboot_required.stat.exists
+        - not ansible_check_mode
+        - (ansible_port | default(22) | int) == (hardening_ssh_port | default(22) | int)
+      tags: [always]
+
+    - name: Warn about pending reboot
+      ansible.builtin.debug:
+        msg: >-
+          Reboot required to activate kernel boot parameters / immutable audit rules.
+          Run: make reboot   (or re-run with -e hardening_reboot=true once connected on the final port)
+      when:
+        - hardening_reboot_required.stat.exists
+        - not (hardening_reboot | default(false) | bool)
+      tags: [always]

@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: fail2ban
+  author: Caio Rodrigues
+  description: Proteção contra brute force no SSH com banimento progressivo e jail recidive integrado ao ufw
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - fail2ban
+    - bruteforce
+dependencies: []

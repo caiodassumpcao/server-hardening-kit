@@ -1,0 +1,58 @@
+---
+# auditd.service tem RefuseManualStop=yes: "systemctl restart auditd" é recusado.
+# SIGHUP faz o daemon reler o auditd.conf.
+- name: Reload auditd configuration
+  ansible.builtin.command: pkill -HUP -x auditd
+  changed_when: true
+  failed_when: false
+  when:
+    - auditd_manage_service | bool
+    - not ansible_check_mode
+
+- name: Read audit status
+  ansible.builtin.command: auditctl -s
+  register: auditd_status
+  changed_when: false
+  listen: Load audit rules
+  when:
+    - auditd_manage_service | bool
+    - not ansible_check_mode
+
+# Com "-e 2" já carregado, o kernel recusa mudanças até o próximo boot.
+- name: Load audit rules with augenrules
+  ansible.builtin.command: augenrules --load
+  changed_when: true
+  listen: Load audit rules
+  when:
+    - auditd_manage_service | bool
+    - not ansible_check_mode
+    - "'enabled 2' not in auditd_status.stdout"
+
+- name: Flag reboot required (audit rules are immutable until reboot)
+  ansible.builtin.copy:
+    dest: /run/reboot-required
+    content: "*** System restart required ***\n"
+    owner: root
+    group: root
+    mode: "0644"
+  listen: Load audit rules
+  when:
+    - auditd_manage_service | bool
+    - not ansible_check_mode
+    - "'enabled 2' in auditd_status.stdout"
+
+- name: Regenerate GRUB configuration
+  ansible.builtin.command: update-grub
+  changed_when: true
+  listen: Update grub
+  when: not ansible_check_mode
+
+- name: Flag reboot required (new kernel command line)
+  ansible.builtin.copy:
+    dest: /run/reboot-required
+    content: "*** System restart required ***\n"
+    owner: root
+    group: root
+    mode: "0644"
+  listen: Update grub
+  when: not ansible_check_mode

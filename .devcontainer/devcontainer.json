@@ -1,0 +1,20 @@
+{
+  // Ambiente pronto (Ansible, Molecule, lint) para quem usa Windows/macOS:
+  // VS Code → "Dev Containers: Reopen in Container".
+  // O VS Code encaminha o ssh-agent do host: rode "ssh-add" na sua máquina antes.
+  "name": "server-hardening-kit",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "make install && echo 'source .venv/bin/activate' >> ~/.bashrc",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "ms-python.python"
+      ]
+    }
+  }
+}

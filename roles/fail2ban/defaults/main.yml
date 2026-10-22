@@ -1,0 +1,22 @@
+---
+fail2ban_ssh_port: "{{ hardening_ssh_port | default(22) }}"
+
+# Nunca banir estas origens (IP do bastion/VPN/escritório). Evita que o próprio
+# operador seja bloqueado durante testes.
+fail2ban_ignoreip: "{{ hardening_trusted_networks | default([]) }}"
+
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+# Reincidentes recebem banimento exponencialmente maior (1h, 2h, 4h ... até 1 semana).
+fail2ban_bantime_increment: true
+fail2ban_bantime_maxtime: 1w
+
+fail2ban_sshd_mode: aggressive # inclui tentativas sem chave válida / pré-auth
+fail2ban_sshd_maxretry: 3
+
+# Jail "recidive": bane por 1 semana em TODAS as portas quem é banido 5x em 1 dia.
+fail2ban_recidive_enabled: true
+
+fail2ban_banaction: ufw
+fail2ban_banaction_allports: ufw

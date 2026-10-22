@@ -1,0 +1,35 @@
+---
+# Auditoria somente-leitura: lista regras NOPASSWD e !authenticate que NÃO
+# foram criadas por este kit (CIS 5.2.4 e 5.2.5).
+- name: CIS 5.2.4 / 5.2.5 | Search sudoers for passwordless rules
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -rEn
+      - '^[^#]*(NOPASSWD|!authenticate)'
+      - /etc/sudoers
+      - /etc/sudoers.d
+  register: users_sudoers_grep
+  changed_when: false
+  failed_when: users_sudoers_grep.rc > 1
+  check_mode: false
+
+- name: Collect findings not managed by server-hardening-kit
+  ansible.builtin.set_fact:
+    users_sudoers_findings: >-
+      {{ users_sudoers_grep.stdout_lines | reject('search', '/etc/sudoers.d/20-hardening-automation:')
+         | reject('search', '/etc/sudoers.d/30-hardening-restricted:') | list }}
+
+- name: Report unmanaged passwordless sudo rules
+  ansible.builtin.debug:
+    msg:
+      - "Found {{ users_sudoers_findings | length }} unmanaged NOPASSWD/!authenticate rule(s) — review against CIS 5.2.4/5.2.5:"
+      - "{{ users_sudoers_findings }}"
+  when: users_sudoers_findings | length > 0
+
+- name: Fail on unmanaged passwordless sudo rules (opt-in)
+  ansible.builtin.assert:
+    that: users_sudoers_findings | length == 0
+    fail_msg: Unmanaged NOPASSWD/!authenticate sudo rules found (see previous task).
+    quiet: true
+  when: users_fail_on_sudoers_findings | bool

@@ -1,0 +1,74 @@
+---
+- name: Validate run label
+  ansible.builtin.assert:
+    that: lynis_label is match('^[A-Za-z0-9._-]+$')
+    fail_msg: "lynis_label must match ^[A-Za-z0-9._-]+$ (got '{{ lynis_label }}')"
+    quiet: true
+
+- name: Install python3-debian (required by deb822_repository)
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+  when: lynis_install_method == 'cisofy'
+
+- name: Add CISOfy Lynis repository (signed)
+  ansible.builtin.deb822_repository:
+    name: cisofy-lynis
+    types: deb
+    uris: "{{ lynis_repo_url }}"
+    suites: stable
+    components: main
+    signed_by: "{{ lynis_repo_key_url }}"
+    state: present
+  register: lynis_repo
+  when: lynis_install_method == 'cisofy'
+
+- name: Install Lynis
+  ansible.builtin.apt:
+    name: lynis
+    state: present
+    update_cache: "{{ lynis_repo is changed }}"
+
+- name: Ensure remote report directory exists
+  ansible.builtin.file:
+    path: "{{ lynis_remote_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Auditoria não altera o sistema: changed_when false mantém o recap honesto.
+- name: Run Lynis system audit | {{ lynis_label }}
+  ansible.builtin.command:
+    argv:
+      - lynis
+      - audit
+      - system
+      - --quiet
+      - --no-colors
+      - --report-file
+      - "{{ lynis_remote_dir }}/lynis-report-{{ lynis_label }}.dat"
+      - --log-file
+      - "{{ lynis_remote_dir }}/lynis-{{ lynis_label }}.log"
+  register: lynis_run
+  changed_when: false
+  timeout: "{{ lynis_timeout }}"
+
+- name: Read hardening index
+  ansible.builtin.command:
+    argv: [grep, -m1, '^hardening_index=', "{{ lynis_remote_dir }}/lynis-report-{{ lynis_label }}.dat"]
+  register: lynis_index
+  changed_when: false
+
+- name: Show hardening index
+  ansible.builtin.debug:
+    msg: "Lynis hardening index ({{ lynis_label }}) on {{ inventory_hostname }}: {{ lynis_index.stdout.split('=')[1] }}"
+
+- name: Fetch report to the controller
+  ansible.builtin.fetch:
+    src: "{{ lynis_remote_dir }}/{{ item.src }}"
+    dest: "{{ lynis_local_dir }}/{{ inventory_hostname }}/{{ lynis_label }}/{{ item.dest }}"
+    flat: true
+  loop:
+    - { src: "lynis-report-{{ lynis_label }}.dat", dest: lynis-report.dat }
+    - { src: "lynis-{{ lynis_label }}.log", dest: lynis.log }

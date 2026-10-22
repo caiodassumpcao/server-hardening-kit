@@ -1,0 +1,16 @@
+---
+# Mede a postura de segurança com o Lynis e traz o relatório para reports/.
+#   make audit-before BOOTSTRAP=1   → baseline, antes do hardening
+#   make audit-after                → depois do hardening
+- name: Audit hosts with Lynis
+  hosts: "{{ hardening_target | default('hardening') }}"
+  become: true
+  gather_facts: true
+
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: "{{ hardening_apt_lock_timeout | default(600) }}"
+
+  roles:
+    - role: lynis
+      tags: [lynis]

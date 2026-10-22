@@ -1,0 +1,78 @@
+---
+# Cenário principal: aplica o playbook REAL (playbooks/site.yml) em containers
+# Ubuntu com systemd e valida o estado final com asserções Ansible.
+#   MOLECULE_DISTRO=ubuntu2204 molecule test
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ${MOLECULE_PROJECT_DIRECTORY}/requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: hardening-${MOLECULE_DISTRO:-ubuntu2404}
+    image: geerlingguy/docker-${MOLECULE_DISTRO:-ubuntu2404}-ansible:latest
+    pre_build_image: true
+    command: ""
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - hardening
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/roles
+  config_options:
+    defaults:
+      callback_result_format: yaml
+      interpreter_python: auto_silent
+  inventory:
+    group_vars:
+      hardening:
+        hardening_ssh_port: 2222
+        hardening_trusted_networks: ["10.0.0.0/8"]
+        users_automation:
+          enabled: true
+          name: ansible
+          ssh_keys:
+            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8OL78x1Wn5qEynlSjjUn23jFW5novLo2V5LdU7aenv molecule-test-only
+          allowed_from: ["10.0.0.0/8"]
+        users_admins:
+          - name: alice
+            comment: Molecule admin
+            ssh_keys:
+              - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8OL78x1Wn5qEynlSjjUn23jFW5novLo2V5LdU7aenv molecule-test-only
+            # Hash de uma senha descartável, usado só neste teste.
+            # Cifrão duplicado = cifrão literal (o Molecule interpola variáveis de ambiente neste arquivo).
+            password_hash: "$$6$$moleculesalt$$Q20u8.gTU4MrUcr0Tu77Z.cD1usFcSjR.acnONpug5JEXwQmgzp9KmO46wVX534iKPODyUBN3ukIZvUdRPOMm/"
+        users_restricted:
+          - name: deployer
+            ssh_keys:
+              - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8OL78x1Wn5qEynlSjjUn23jFW5novLo2V5LdU7aenv molecule-test-only
+            sudo_commands:
+              - /usr/bin/systemctl restart nginx
+        users_absent:
+          - olduser
+        ufw_rules:
+          - { rule: allow, port: "443", proto: tcp, comment: https }
+
+verifier:
+  name: ansible
+
+scenario:
+  test_sequence:
+    - dependency
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - cleanup
+    - destroy

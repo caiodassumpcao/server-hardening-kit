@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# Contas de serviço com sudo limitado a uma allowlist de comandos (caminho absoluto, argumentos fixos).
+{% for account in users_restricted if account.sudo_commands is defined and account.state | default('present') == 'present' %}
+{% set alias = (account.name | upper | regex_replace('[^A-Z0-9]', '_')) ~ '_CMDS' %}
+Cmnd_Alias {{ alias }} = {{ account.sudo_commands | join(', ') }}
+{{ account.name }} ALL=(root) NOPASSWD: {{ alias }}
+
+{% endfor %}

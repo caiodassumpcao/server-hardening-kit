@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: ufw
+  author: Caio Rodrigues
+  description: Firewall host-based com ufw, default deny, rate limit no SSH e troca de porta sem lockout (CIS 4.1)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - firewall
+    - cis
+dependencies: []

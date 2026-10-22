@@ -1,0 +1,169 @@
+---
+- name: CIS 5.2.1 | Ensure sudo is installed
+  ansible.builtin.apt:
+    name: sudo
+    state: present
+
+- name: Ensure management groups exist
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+    system: true
+  loop:
+    - "{{ users_admin_group }}"
+    - "{{ users_ssh_group }}"
+    - "{{ users_su_group }}"
+
+- name: Read local user database (used to keep --check mode accurate)
+  ansible.builtin.getent:
+    database: passwd
+
+- name: Warn about admins without a password hash (they cannot use sudo)
+  ansible.builtin.debug:
+    msg: >-
+      Admin '{{ item.name }}' has no password_hash: SSH login works with the key,
+      but sudo (which requires a password, CIS 5.2.4) will be unusable.
+  loop: "{{ users_admins | selectattr('password_hash', 'undefined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Manage administrator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default(omit) }}"
+    shell: "{{ item.shell | default(users_default_shell) }}"
+    groups:
+      - "{{ users_admin_group }}"
+      - "{{ users_ssh_group }}"
+    append: true
+    password: "{{ item.password_hash | default(omit) }}"
+    update_password: always
+    create_home: true
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ users_admins }}"
+  loop_control:
+    label: "{{ item.name }}"
+  # Hashes de senha são sensíveis (quebra offline); não vazam para o log/CI.
+  no_log: true
+
+- name: Manage automation account (key-only, no password)
+  ansible.builtin.user:
+    name: "{{ users_automation.name }}"
+    comment: Automation account managed by server-hardening-kit
+    shell: "{{ users_default_shell }}"
+    groups:
+      - "{{ users_ssh_group }}"
+    append: true
+    create_home: true
+    state: present
+  when: users_automation.enabled | bool
+
+- name: Manage restricted service accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default('Restricted service account') }}"
+    shell: "{{ item.shell | default(users_default_shell) }}"
+    groups:
+      - "{{ users_ssh_group }}"
+    append: true
+    create_home: true
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ users_restricted }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Build the list of present accounts that receive SSH keys
+  ansible.builtin.set_fact:
+    users_key_holders: >-
+      {{ (users_admins + users_restricted) | rejectattr('state', 'defined') | list
+         + (users_admins + users_restricted) | selectattr('state', 'defined') | selectattr('state', 'equalto', 'present') | list
+         + ([users_automation] if users_automation.enabled | bool else []) }}
+
+- name: Deploy authorized keys (exclusive — keys not listed here are removed)
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_keys | join('\n') }}"
+    # Restringe a origem da chave (útil para a conta de automação / CI).
+    key_options: "{{ ('from=\"' ~ (item.allowed_from | join(',')) ~ '\"') if item.allowed_from | default([]) | length > 0 else omit }}"
+    exclusive: true
+    manage_dir: true
+    state: present
+  loop: "{{ users_key_holders }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.ssh_keys | default([]) | length > 0
+    # Em --check o usuário pode ainda não existir; a task de criação já reporta a divergência.
+    - not ansible_check_mode or item.name in ansible_facts['getent_passwd']
+
+- name: CIS 5.2.2 / 5.2.3 / 5.2.6 | Configure global sudo defaults
+  ansible.builtin.template:
+    src: sudoers-defaults.j2
+    dest: /etc/sudoers.d/00-hardening-defaults
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: CIS 5.2.4 | Grant admins sudo with password
+  ansible.builtin.template:
+    src: sudoers-admins.j2
+    dest: /etc/sudoers.d/10-hardening-admins
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Grant automation account passwordless sudo (documented exception)
+  ansible.builtin.template:
+    src: sudoers-automation.j2
+    dest: /etc/sudoers.d/20-hardening-automation
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: users_automation.enabled | bool
+
+- name: Remove automation sudo rule when the account is disabled
+  ansible.builtin.file:
+    path: /etc/sudoers.d/20-hardening-automation
+    state: absent
+  when: not users_automation.enabled | bool
+
+- name: Grant restricted accounts sudo for an explicit command allowlist
+  ansible.builtin.template:
+    src: sudoers-restricted.j2
+    dest: /etc/sudoers.d/30-hardening-restricted
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: users_restricted | selectattr('sudo_commands', 'defined') | list | length > 0
+
+- name: Remove cloud-provider NOPASSWD sudoers files (not while connected as the bootstrap user)
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/{{ item }}"
+    state: absent
+  loop: "{{ users_purge_sudoers_files }}"
+  when: (ansible_user | default('')) != users_bootstrap_user
+
+- name: CIS 5.2.7 | Restrict su to the (empty) su group
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?\s*auth\s+required\s+pam_wheel\.so'
+    line: "auth       required   pam_wheel.so use_uid group={{ users_su_group }}"
+    insertafter: '^auth\s+sufficient\s+pam_rootok\.so'
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Remove decommissioned accounts
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: true
+  loop: "{{ users_absent }}"
+
+- name: Audit sudoers
+  ansible.builtin.include_tasks: audit_sudoers.yml
+  when: users_audit_sudoers | bool

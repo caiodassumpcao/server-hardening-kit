@@ -1,0 +1,5 @@
+---
+# 1. cp vault.yml.example vault.yml
+# 2. gere o hash:            openssl passwd -6
+# 3. cole abaixo e criptografe: ansible-vault encrypt inventories/lab/group_vars/hardening/vault.yml
+vault_admin_password_hash: "$6$COLE_AQUI_O_HASH_GERADO"

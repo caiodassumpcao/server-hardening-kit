@@ -1,0 +1,37 @@
+## {{ ansible_managed }}
+## CIS Ubuntu Linux Benchmark — seção 6.2.3 (regras do auditd).
+## Gerado a partir de dados (roles/auditd/defaults/main.yml): syscalls inexistentes
+## nesta arquitetura e caminhos inexistentes são omitidos automaticamente.
+
+## --- Watches de arquivos ------------------------------------------------------
+{% for rule in auditd_watch_rules if (rule.path | dirname) in auditd_existing_paths %}
+-w {{ rule.path }} -p {{ rule.perm }} -k {{ rule.key }}
+{% endfor %}
+
+## --- Syscalls -----------------------------------------------------------------
+{% for rule in auditd_syscall_rules %}
+{% for arch in auditd_arches %}
+{# select('in') e não intersect: intersect devolve um set, cuja ordem muda entre execuções e quebra a idempotência #}
+{% set calls = (rule.syscalls | select('in', auditd_syscall_table[arch]) | list) if arch in auditd_syscall_table else rule.syscalls %}
+{% if calls | length > 0 %}
+-a always,exit -F arch={{ arch }} -S {{ calls | join(',') }} {{ rule.fields | default('') }} -k {{ rule.key }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+## --- Execução de comandos sensíveis -------------------------------------------
+{% for rule in auditd_exec_rules if rule.path in auditd_existing_paths %}
+-a always,exit -F path={{ rule.path }} -F perm=x -F auid>={{ auditd_uid_min }} -F auid!=unset -k {{ rule.key }}
+{% endfor %}
+
+## --- CIS 6.2.3.6: binários setuid/setgid ({{ auditd_privileged_commands | length }} encontrados) ---
+{% for command in auditd_privileged_commands %}
+-a always,exit -F path={{ command }} -F perm=x -F auid>={{ auditd_uid_min }} -F auid!=unset -k privileged
+{% endfor %}
+{% if auditd_extra_rules | length > 0 %}
+
+## --- Regras adicionais do inventário -------------------------------------------
+{% for line in auditd_extra_rules %}
+{{ line }}
+{% endfor %}
+{% endif %}

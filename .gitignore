@@ -1,0 +1,38 @@
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Ansible
+*.retry
+.ansible/
+collections/ansible_collections/
+
+# Segredos — nunca versionar
+.vault_pass
+*.vault_pass
+**/vault.yml
+!**/vault.yml.example
+*.pem
+*.key
+id_*
+
+# Inventários reais ficam fora do Git (contêm IPs/usuários); só o exemplo é versionado
+inventories/*
+!inventories/example/
+
+# Relatórios brutos do Lynis contêm hostnames, IPs e lista de pacotes.
+# Apenas o resumo sanitizado em docs/reports/ é versionado.
+reports/
+
+# Lab local
+lab/cloud-init.yml
+
+# Editores / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

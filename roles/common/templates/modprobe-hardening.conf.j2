@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# CIS 1.1.1.x / 3.2.x — módulos de kernel desnecessários em servidores.
+# "install <mod> /bin/false" impede o carregamento mesmo via dependência;
+# "blacklist" impede o autoload por alias.
+{% for module in common_disabled_kernel_modules %}
+install {{ module }} /bin/false
+blacklist {{ module }}
+{% endfor %}

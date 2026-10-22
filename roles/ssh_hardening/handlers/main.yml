@@ -1,0 +1,9 @@
+---
+# Restart (e não reload) porque mudança de Port exige novo bind. Sessões já
+# abertas — incluindo a do Ansible — sobrevivem, pois pertencem a processos filhos.
+- name: Restart sshd
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted
+    daemon_reload: true
+  when: not ansible_check_mode

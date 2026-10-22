@@ -1,0 +1,31 @@
+---
+- name: Check for GRUB
+  ansible.builtin.stat:
+    path: /usr/sbin/update-grub
+  register: auditd_update_grub
+
+- name: Ensure GRUB drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/default/grub.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  register: auditd_grub_dir
+  when: auditd_update_grub.stat.exists
+
+# Arquivo próprio em grub.d (não edita /etc/default/grub): sobrevive a upgrades
+# e acumula sobre os parâmetros da imagem de nuvem (50-cloudimg-settings.cfg).
+- name: CIS 6.2.1.3 / 6.2.1.4 | Enable auditing before auditd starts and size the backlog
+  ansible.builtin.copy:
+    dest: /etc/default/grub.d/99-hardening-audit.cfg
+    content: |
+      # Managed by server-hardening-kit (CIS 6.2.1.3 / 6.2.1.4)
+      GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX audit=1 audit_backlog_limit={{ auditd_backlog_limit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - auditd_update_grub.stat.exists
+    - not (ansible_check_mode and auditd_grub_dir is changed)
+  notify: Update grub
