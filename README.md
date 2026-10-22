@@ -11,6 +11,8 @@
 ![ansible-lint](https://img.shields.io/badge/ansible--lint-production-success)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**🇧🇷 Português** | [🇺🇸 English](README.en.md)
+
 </div>
 
 O kit pega um Ubuntu "de fábrica" e o leva a um baseline de segurança
