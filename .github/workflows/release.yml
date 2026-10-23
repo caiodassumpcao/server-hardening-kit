@@ -1,0 +1,46 @@
+---
+# Publica uma GitHub Release ao enviar uma tag vX.Y.Z. As notas vêm da seção
+# correspondente do CHANGELOG.md, que continua sendo a fonte única de verdade.
+#   git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # criar a release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          # Comparação literal (index) e não regex: "[" e "." da versão não viram metacaracteres.
+          awk -v header="## [${version}]" '
+            index($0, header) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md não tem a seção [${version}]"
+            exit 1
+          fi
+          cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag
