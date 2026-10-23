@@ -11,6 +11,23 @@
     ansible.builtin.apt:
       lock_timeout: "{{ hardening_apt_lock_timeout | default(600) }}"
 
+  # Este costuma ser o PRIMEIRO comando numa VM recém-criada: o SSH já responde
+  # enquanto o cloud-init ainda reescreve o /etc/apt/sources.list (apt quebrado
+  # no meio da escrita — visto no E2E em VM real).
+  pre_tasks:
+    - name: Check whether cloud-init is present
+      ansible.builtin.stat:
+        path: /usr/bin/cloud-init
+      register: audit_cloud_init_bin
+
+    - name: Wait for cloud-init to finish
+      ansible.builtin.command: cloud-init status --wait
+      register: audit_cloud_init
+      changed_when: false
+      failed_when: audit_cloud_init.rc not in [0, 2]
+      timeout: 900
+      when: audit_cloud_init_bin.stat.exists
+
   roles:
     - role: lynis
       tags: [lynis]
