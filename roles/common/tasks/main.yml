@@ -33,10 +33,15 @@
     - not common_is_container | bool
     - common_cloud_init_bin.stat.exists
 
+# Roda de verdade mesmo em --check: só atualiza o índice de pacotes (não muda
+# configuração). Sem isso, em hosts com cache vazio (imagens de nuvem/containers)
+# o modo auditoria acusaria "No package matching ... is available".
 - name: Refresh apt cache
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: "{{ common_apt_cache_valid_time }}"
+  check_mode: false
+  changed_when: false
 
 - name: Gather installed packages (used for check-mode guards in other roles)
   ansible.builtin.package_facts:

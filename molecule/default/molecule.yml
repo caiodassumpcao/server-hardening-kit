@@ -71,6 +71,8 @@ scenario:
     - syntax
     - create
     - prepare
+    # Modo auditoria num host "de fábrica": precisa rodar sem falhar (só relatar).
+    - check
     - converge
     - idempotence
     - verify

@@ -36,3 +36,6 @@ lab/cloud-init.yml
 .idea/
 .DS_Store
 Thumbs.db
+
+# Inventário gerado pelo workflow E2E VM
+tests/e2e-vm/hosts.yml

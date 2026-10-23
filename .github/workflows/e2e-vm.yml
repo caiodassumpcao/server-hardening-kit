@@ -1,0 +1,188 @@
+---
+# E2E do fluxo COMPLETO, como um usuário faria, numa VM Ubuntu real (LXD + KVM
+# dentro do runner do GitHub): Lynis antes → --check → bootstrap pela porta 22 →
+# steady state na 2222 → idempotência → reboot → --check conforme → Lynis depois
+# → testes negativos (root, senha, porta 22). Usa os mesmos comandos `make` do README.
+name: E2E VM (SSH flow)
+
+on:
+  push:
+    branches: [main, "ci/**"] # ci/** = branches de desenvolvimento de pipeline
+  pull_request:
+    paths:
+      - "roles/**"
+      - "playbooks/**"
+      - "Makefile"
+      - "ansible.cfg"
+      - "requirements*"
+      - "tests/e2e-vm/**"
+      - ".github/workflows/e2e-vm.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-vm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-vm:
+    name: VM Ubuntu ${{ matrix.release }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["22.04", "24.04"]
+    env:
+      ANSIBLE_FORCE_COLOR: "1"
+      # Host key nova a cada execução (VM descartável).
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+      INVENTORY: tests/e2e-vm/hosts.yml
+      SSH_OPTS: -i ~/.ssh/e2e -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install controller tooling (same as README)
+        run: make install
+
+      # ----------------------------------------------------------- VM -----
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: Set up LXD
+        run: |
+          snap list lxd >/dev/null 2>&1 || sudo snap install lxd
+          sudo lxd waitready --timeout=120
+          sudo lxd init --auto
+          # O Docker do runner deixa a policy FORWARD em DROP, o que corta a
+          # internet das VMs no bridge do LXD (precisam de apt e do repo do Lynis).
+          sudo iptables -P FORWARD ACCEPT
+          sudo ip6tables -P FORWARD ACCEPT || true
+
+      - name: Launch Ubuntu ${{ matrix.release }} VM ("de fábrica", usuário ubuntu)
+        run: |
+          ssh-keygen -q -t ed25519 -N "" -C e2e-vm -f ~/.ssh/e2e
+          printf '#cloud-config\nssh_authorized_keys:\n  - %s\n' "$(cat ~/.ssh/e2e.pub)" > /tmp/user-data
+          sudo lxc launch "ubuntu:${{ matrix.release }}" target --vm \
+            -c limits.cpu=2 -c limits.memory=3GiB \
+            -c cloud-init.user-data="$(cat /tmp/user-data)"
+          for i in $(seq 1 90); do
+            IP=$(sudo lxc list target -c 4 -f csv | grep -oE '([0-9]+\.){3}[0-9]+' | head -1 || true)
+            if [ -n "$IP" ] && ssh $SSH_OPTS "ubuntu@$IP" true 2>/dev/null; then break; fi
+            sleep 5
+          done
+          ssh $SSH_OPTS "ubuntu@$IP" 'lsb_release -ds && uname -r'
+          echo "VM_IP=$IP" >> "$GITHUB_ENV"
+
+      - name: Generate inventory
+        run: |
+          cat > "$INVENTORY" <<EOF
+          all:
+            children:
+              hardening:
+                hosts:
+                  vm:
+                    ansible_host: ${VM_IP}
+                vars:
+                  ansible_user: ansible
+                  ansible_port: 2222
+                  ansible_ssh_private_key_file: ${HOME}/.ssh/e2e
+                  ansible_python_interpreter: /usr/bin/python3
+          EOF
+          cat "$INVENTORY"
+
+      # ------------------------------------------- fluxo do README -----
+      - name: "Passo 6 | make ping BOOTSTRAP=1"
+        run: make ping BOOTSTRAP=1 INVENTORY="$INVENTORY"
+
+      - name: "Passo 7 | make audit-before BOOTSTRAP=1"
+        run: make audit-before BOOTSTRAP=1 INVENTORY="$INVENTORY"
+
+      - name: "Passo 8 | make check BOOTSTRAP=1 (host de fábrica: não pode falhar)"
+        run: make check BOOTSTRAP=1 INVENTORY="$INVENTORY"
+
+      - name: "Passo 9 | make bootstrap"
+        run: make bootstrap INVENTORY="$INVENTORY"
+
+      - name: "Assert | após o bootstrap: só a conta de automação entra, e só na 2222"
+        run: |
+          ssh $SSH_OPTS -p 2222 "ansible@$VM_IP" 'sudo -n true' && echo "ok: ansible@2222 com sudo"
+          if ssh $SSH_OPTS -p 2222 "ubuntu@$VM_IP" true; then echo "FAIL: ubuntu ainda entra"; exit 1; fi
+          echo "ok: usuário de fábrica bloqueado pelo AllowGroups"
+
+      - name: "Passo 11 | make harden (steady state: fecha a porta 22)"
+        run: make harden INVENTORY="$INVENTORY"
+
+      - name: "Passo 11 | idempotência (changed=0)"
+        run: |
+          make harden INVENTORY="$INVENTORY" | tee harden2.log
+          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' harden2.log
+
+      - name: "Passo 12 | make reboot"
+        run: make reboot INVENTORY="$INVENTORY"
+
+      - name: "Assert | parâmetros que só valem após o reboot"
+        run: |
+          ssh $SSH_OPTS -p 2222 "ansible@$VM_IP" bash -s <<'EOF'
+          set -euxo pipefail
+          grep -qw 'audit=1' /proc/cmdline
+          sudo auditctl -s | grep -q 'enabled 2'
+          test "$(sysctl -n net.ipv4.conf.all.log_martians)" = 1
+          sudo ufw status | grep -E '^2222/tcp +LIMIT'
+          ! sudo ufw status | grep -E '^22/tcp'
+          systemctl is-active ssh fail2ban auditd unattended-upgrades
+          EOF
+
+      - name: "Passo 8 | make check em host endurecido (changed=0)"
+        run: |
+          make check INVENTORY="$INVENTORY" | tee check.log
+          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' check.log
+
+      - name: "Passo 13 | make audit-after"
+        run: make audit-after INVENTORY="$INVENTORY"
+
+      - name: "Assert | ataques que precisam falhar"
+        run: |
+          set -x
+          # root não entra
+          if ssh $SSH_OPTS -p 2222 "root@$VM_IP" true; then echo "FAIL: root login"; exit 1; fi
+          # senha não é sequer oferecida pelo servidor
+          out=$(ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive \
+                -p 2222 "alice@$VM_IP" true 2>&1 || true)
+          echo "$out" | grep -q 'Permission denied (publickey)'
+          # porta 22 fechada no firewall
+          if timeout 10 bash -c "</dev/tcp/$VM_IP/22"; then echo "FAIL: porta 22 aberta"; exit 1; fi
+          echo "ok: root, senha e porta 22 bloqueados"
+
+      # ---------------------------------------------------- resultado -----
+      - name: Publish Lynis comparison
+        if: always()
+        run: |
+          [ -d reports ] || exit 0
+          .venv/bin/python scripts/lynis_report.py --reports-dir reports \
+            --output reports/lynis-comparison.md --summary | tee -a "$GITHUB_STEP_SUMMARY"
+          b=$(grep -m1 '^hardening_index=' reports/vm/before/lynis-report.dat | cut -d= -f2)
+          a=$(grep -m1 '^hardening_index=' reports/vm/after/lynis-report.dat | cut -d= -f2)
+          echo "::notice title=Lynis Ubuntu ${{ matrix.release }}::hardening index ${b} -> ${a}"
+
+      - name: Upload reports (Lynis + JUnit do modo auditoria)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-vm-ubuntu-${{ matrix.release }}
+          path: reports/
+          retention-days: 30
