@@ -90,17 +90,32 @@
     mode: "0644"
   when: not ansible_check_mode or 'sysstat' in ansible_facts['packages']
 
+# Kernels enxutos (ex.: linux-kvm de imagens de VM/nuvem) podem vir sem BSD
+# process accounting; nesse caso o acct.service falha ao subir. O kernel expõe
+# /proc/sys/kernel/acct apenas quando o recurso existe.
+- name: Check kernel support for process accounting
+  ansible.builtin.stat:
+    path: /proc/sys/kernel/acct
+  register: common_kernel_acct
+
 - name: Ensure accounting services are enabled
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     enabled: true
     state: started
-  loop:
-    - acct
-    - sysstat
+  loop: "{{ ['sysstat'] + (['acct'] if common_kernel_acct.stat.exists else []) }}"
   when:
     - not common_is_container | bool
     - not ansible_check_mode or item in ansible_facts['packages']
+
+- name: Disable acct on kernels without process accounting support
+  ansible.builtin.systemd_service:
+    name: acct
+    enabled: false
+  when:
+    - not common_is_container | bool
+    - not common_kernel_acct.stat.exists
+    - "'acct' in ansible_facts['packages'] or not ansible_check_mode"
 
 - name: CIS 2.2.x | Remove insecure legacy client packages
   ansible.builtin.apt:
