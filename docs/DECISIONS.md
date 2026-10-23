@@ -146,6 +146,13 @@ continuam sendo uma decisão operacional: o `motd` e o próprio playbook avisam
 quando há reboot pendente. Em frotas atrás de load balancer, ative
 `unattended_upgrades_automatic_reboot`.
 
+**Ordem de execução.** A role roda **por último**. Ao ativar os timers, o
+`apt-daily` dispara na hora e segura `/var/cache/apt/archives/lock`, que o
+`lock_timeout` do apt não cobre. Se rodasse antes, as instalações das roles
+seguintes falhariam de forma intermitente; o E2E em VM real pegou exatamente
+esse caso. Pelo mesmo motivo, a role `common` espera jobs do apt em andamento
+antes de instalar qualquer pacote.
+
 ---
 
 ## ADR-009 — Testes em três camadas

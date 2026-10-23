@@ -115,7 +115,7 @@ flowchart LR
     subgraph Target["🐧 Ubuntu 22.04 / 24.04"]
         direction TB
         C[common] --> U[users] --> F[ufw] --> S[ssh_hardening]
-        S --> FB[fail2ban] --> UU[unattended_upgrades] --> K[sysctl_hardening] --> A[auditd]
+        S --> FB[fail2ban] --> K[sysctl_hardening] --> A[auditd] --> UU[unattended_upgrades]
     end
 
     INV --> PB

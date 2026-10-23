@@ -137,6 +137,9 @@ jobs:
 
       - name: "Assert | parâmetros que só valem após o reboot"
         run: |
+          # O módulo reboot pode retornar um instante antes do sshd aceitar conexões.
+          # Intervalo de 10s: o "ufw limit" bloqueia a partir de 6 conexões novas em 30s.
+          for i in $(seq 1 18); do ssh $SSH_OPTS -p 2222 "ansible@$VM_IP" true && break; sleep 10; done
           ssh $SSH_OPTS -p 2222 "ansible@$VM_IP" bash -s <<'EOF'
           set -euxo pipefail
           grep -qw 'audit=1' /proc/cmdline

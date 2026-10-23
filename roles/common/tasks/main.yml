@@ -33,6 +33,24 @@
     - not common_is_container | bool
     - common_cloud_init_bin.stat.exists
 
+# apt-daily/apt-daily-upgrade seguram /var/cache/apt/archives/lock, que o
+# lock_timeout do apt NÃO cobre (só o lock do dpkg). Esperar evita falhas de
+# instalação intermitentes em hosts com os timers ativos (detectado no E2E).
+# noqa justificado: precisamos do estado transitório "activating" do
+# "systemctl is-active", que o módulo systemd/service_facts não expõe.
+- name: Wait for background apt jobs (apt-daily) to finish
+  ansible.builtin.command: systemctl is-active apt-daily.service apt-daily-upgrade.service # noqa: command-instead-of-module
+  register: common_apt_jobs
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  until: >-
+    'active' not in common_apt_jobs.stdout_lines
+    and 'activating' not in common_apt_jobs.stdout_lines
+  retries: 90
+  delay: 10
+  when: not common_is_container | bool
+
 # Roda de verdade mesmo em --check: só atualiza o índice de pacotes (não muda
 # configuração). Sem isso, em hosts com cache vazio (imagens de nuvem/containers)
 # o modo auditoria acusaria "No package matching ... is available".

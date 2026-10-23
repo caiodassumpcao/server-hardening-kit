@@ -36,12 +36,14 @@
       tags: [ssh]
     - role: fail2ban
       tags: [fail2ban]
-    - role: unattended_upgrades
-      tags: [updates]
     - role: sysctl_hardening
       tags: [sysctl, kernel]
     - role: auditd
       tags: [auditd]
+    # Por último: ao ativar os timers, o apt-daily dispara na hora e segura o
+    # lock do apt; antes disso todas as instalações de pacotes já terminaram.
+    - role: unattended_upgrades
+      tags: [updates]
 
   post_tasks:
     - name: Run pending handlers before post-deploy validation
