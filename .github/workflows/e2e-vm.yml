@@ -128,8 +128,9 @@ jobs:
 
       - name: "Passo 11 | idempotência (changed=0)"
         run: |
+          set -o pipefail
           make harden INVENTORY="$INVENTORY" | tee harden2.log
-          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' harden2.log
+          scripts/ci/assert-no-changes.sh harden2.log "Not idempotent"
 
       - name: "Passo 12 | make reboot"
         run: make reboot INVENTORY="$INVENTORY"
@@ -148,8 +149,9 @@ jobs:
 
       - name: "Passo 8 | make check em host endurecido (changed=0)"
         run: |
+          set -o pipefail
           make check INVENTORY="$INVENTORY" | tee check.log
-          grep -Eq 'changed=0\s+unreachable=0\s+failed=0' check.log
+          scripts/ci/assert-no-changes.sh check.log "Not compliant after reboot"
 
       - name: "Passo 13 | make audit-after"
         run: make audit-after INVENTORY="$INVENTORY"
@@ -172,7 +174,9 @@ jobs:
       - name: Publish Lynis comparison
         if: always()
         run: |
-          [ -d reports ] || exit 0
+          if [ ! -f reports/vm/after/lynis-report.dat ]; then
+            echo "Lynis 'after' não foi gerado (passo anterior falhou)."; exit 0
+          fi
           .venv/bin/python scripts/lynis_report.py --reports-dir reports \
             --output reports/lynis-comparison.md --summary | tee -a "$GITHUB_STEP_SUMMARY"
           b=$(grep -m1 '^hardening_index=' reports/vm/before/lynis-report.dat | cut -d= -f2)

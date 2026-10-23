@@ -141,6 +141,7 @@ mitiga ou detecta, e **como verificar** manualmente no servidor.
 | `usb-storage` desabilitado | 1.1.1.x | USB-1000 | T1052.001 Exfiltration over USB · T1091 | 🛡️ | `modprobe -n -v usb-storage` |
 | Protocolos raros desabilitados (dccp, sctp, rds, tipc) | 3.2.x | NETW-3200 | T1068 | 🛡️ | `modprobe -n -v dccp` |
 | AppArmor ativo | 1.3.1.x | MACF-6208 | T1068 (contenção) | 🛡️ | `aa-status` |
+| apport desativado e mascarado (no boot ele reescrevia `fs.suid_dumpable=2`) | 1.5.5 | — | T1003.007 Proc Filesystem | 🛡️ | `systemctl is-enabled apport` → `masked` |
 | Banner de login local | 1.6.x | BANN-7126 | — | 🛡️ | `cat /etc/issue` |
 | Clientes legados removidos (telnet, rsh, nis, talk, ftp) | 2.2.x | — | T1040 Network Sniffing (protocolos em texto claro) | 🛡️ | `dpkg -l telnet rsh-client` |
 | `debsums`, `apt-show-versions`, `libpam-tmpdir` | — | PKGS-7370 · PKGS-7394 · DEB-0280 | T1036 (integridade de pacotes) | 🔎 | `dpkg -l debsums` |
