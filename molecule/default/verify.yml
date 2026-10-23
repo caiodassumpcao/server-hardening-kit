@@ -24,6 +24,7 @@
           - "'maxauthtries 3' in verify_sshd.stdout_lines"
           - "'allowgroups sshusers' in verify_sshd.stdout_lines"
           - "'x11forwarding no' in verify_sshd.stdout_lines"
+          - "'allowtcpforwarding no' in verify_sshd.stdout_lines"
           - "'loglevel VERBOSE' in verify_sshd.stdout_lines"
           - verify_sshd.stdout is search('(?m)^ciphers chacha20-poly1305@openssh.com')
         fail_msg: "Effective sshd config is not hardened: {{ verify_sshd.stdout_lines }}"
@@ -200,6 +201,36 @@
           - "'ansible' in ansible_facts['getent_group']['sshusers'][2].split(',')"
           # chave da automação restrita por origem
           - (verify_ansible_keys.content | b64decode) is search('^from="10.0.0.0/8" ssh-ed25519 ')
+        quiet: true
+
+    # -------------------------------------------------- password policy -----
+    - name: Read login.defs
+      ansible.builtin.slurp:
+        src: /etc/login.defs
+      register: verify_login_defs
+
+    - name: Read pwquality drop-in
+      ansible.builtin.slurp:
+        src: /etc/security/pwquality.conf.d/50-hardening.conf
+      register: verify_pwquality
+
+    - name: Read password aging of the admin account
+      ansible.builtin.command: chage -l alice
+      register: verify_chage
+      changed_when: false
+      environment:
+        LC_ALL: C
+
+    - name: Assert password policy (CIS 5.3.3.2 / 5.4.1 / 5.4.3.3)
+      ansible.builtin.assert:
+        that:
+          - (verify_login_defs.content | b64decode) is search('(?m)^PASS_MAX_DAYS\s+365$')
+          - (verify_login_defs.content | b64decode) is search('(?m)^PASS_MIN_DAYS\s+1$')
+          - (verify_login_defs.content | b64decode) is search('(?m)^UMASK\s+027$')
+          - (verify_login_defs.content | b64decode) is search('(?m)^ENCRYPT_METHOD\s+YESCRYPT$')
+          - (verify_pwquality.content | b64decode) is search('(?m)^minlen = 14$')
+          - (verify_pwquality.content | b64decode) is search('(?m)^enforce_for_root$')
+          - verify_chage.stdout is search('Maximum number of days between password change\s+:\s+365')
         quiet: true
 
     - name: Assert su is restricted (CIS 5.2.7)

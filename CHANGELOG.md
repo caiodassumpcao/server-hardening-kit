@@ -13,11 +13,28 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - `ansible-core` aceito até 2.21.x; Dependabot com `increase-if-necessary` e PRs agrupados.
 
 ### Adicionado
+- E2E em **VM real** (LXD/KVM no runner do GitHub) cobrindo o fluxo completo do
+  README por SSH: Lynis antes, `--check` em host de fábrica, bootstrap pela 22,
+  steady state na 2222, idempotência, reboot, `--check` conforme, Lynis depois e
+  testes negativos (root, senha, porta 22).
+- Role `password_policy` (CIS 5.3/5.4): `pam_pwquality`, envelhecimento de senha,
+  hash yescrypt e `umask 027`; validade aplicada também aos admins existentes.
+- CIS 1.5.5: apport desativado (no boot ele reescrevia `fs.suid_dumpable=2`).
+- `acct`, `sysstat` e verificação semanal do `debsums`; sysctls
+  `dev.tty.ldisc_autoload=0` e `kernel.core_uses_pid=1`; `AllowTcpForwarding no` explícito.
+- Molecule roda `--check` num host "de fábrica" antes do converge.
 - `CONTRIBUTING.md`.
 
 ### Corrigido
 - Dev Container: `ANSIBLE_CONFIG` explícito. Pastas do Windows montadas no
   container são *world-writable*, e o Ansible ignorava o `ansible.cfg`.
+- `--check` falhava em host de fábrica (cache do apt vazio; `/etc/fail2ban` e
+  `/etc/ssh` inexistentes antes da instalação).
+- `--check` acusava drift falso num host conforme ao simular a remoção de regra
+  ufw já inexistente.
+- Falhas intermitentes de `apt` na 1ª execução: o `apt-daily` disparado ao ativar
+  os timers segurava o lock. `unattended_upgrades` passou a ser a última role e a
+  `common` espera jobs do apt em andamento.
 
 ## [1.0.0] - 2026-10-22
 

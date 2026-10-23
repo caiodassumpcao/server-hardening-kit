@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: password_policy
+  author: Caio Rodrigues
+  description: Política de senhas locais (envelhecimento, umask, hashing e pam_pwquality) conforme CIS 5.3/5.4
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - security
+    - pam
+    - cis
+dependencies: []

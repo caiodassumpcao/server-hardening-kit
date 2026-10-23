@@ -29,6 +29,8 @@
       tags: [common, always]
     - role: users
       tags: [users, sudo]
+    - role: password_policy
+      tags: [password, users]
     # ufw ANTES do ssh: a nova porta já está liberada quando o sshd reinicia.
     - role: ufw
       tags: [ufw, firewall]

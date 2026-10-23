@@ -1,0 +1,29 @@
+---
+# Política de senhas para contas LOCAIS (console e senha do sudo). O SSH já não
+# aceita senha (roles/ssh_hardening); isto cobre o que sobra: escalada de
+# privilégio e acesso de emergência pelo console.
+
+# CIS 5.4.1.x — envelhecimento (vale para contas criadas daqui em diante;
+# admins existentes recebem o mesmo via roles/users).
+password_policy_max_days: 365 # CIS 5.4.1.1
+password_policy_min_days: 1 # CIS 5.4.1.2
+password_policy_warn_age: 7 # CIS 5.4.1.3
+
+# CIS 5.4.3.3 — arquivos novos não ficam legíveis por "outros".
+password_policy_umask: "027"
+
+# CIS 5.4.1.4 — algoritmo de hash (o Ubuntu 22.04+ já usa yescrypt).
+password_policy_encrypt_method: YESCRYPT
+password_policy_yescrypt_cost_factor: 7
+password_policy_sha_crypt_min_rounds: 65536 # usado se o método for SHA512
+password_policy_sha_crypt_max_rounds: 65536
+
+# CIS 5.3.3.2.x — qualidade de senha (pam_pwquality).
+password_policy_pwquality:
+  minlen: 14 # 5.3.3.2.2
+  minclass: 4 # 5.3.3.2.3
+  difok: 2 # 5.3.3.2.1
+  maxrepeat: 3 # 5.3.3.2.4
+  maxsequence: 3 # 5.3.3.2.5
+  dictcheck: 1 # 5.3.3.2.6
+  enforcing: 1 # 5.3.3.2.7

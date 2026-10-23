@@ -56,7 +56,7 @@ with three guarantees:
 
 **What this project demonstrates**
 
-- **Infrastructure as code:** 9 reusable Ansible roles, configurable through variables, with secrets in Ansible Vault.
+- **Infrastructure as code:** 10 reusable Ansible roles, configurable through variables, with secrets in Ansible Vault.
 - **Applied security:** every control traces back to its CIS item, its Lynis test and the MITRE ATT&CK technique it mitigates ([matrix](docs/CIS_MAPPING.md), [threat model](docs/THREAT_MODEL.md)).
 - **Safe changes in production:** an audit mode that only reports, and a two-phase SSH port migration that never locks the operator out.
 - **Infrastructure testing:** a full test pyramid (lint → unit → integration in containers → E2E on a VM) running on GitHub Actions.
@@ -88,6 +88,7 @@ Detailed report (resolved and remaining warnings/suggestions):
 |---|---|---|
 | [`common`](roles/common) | Validates the OS, waits for cloud-init, removes legacy clients (telnet/rsh/nis), disables rare kernel modules and USB storage, restricts core dumps, enables AppArmor and a login banner | 1.1.1.x, 1.3, 1.5.3, 1.6, 2.2.x, 3.2.x |
 | [`users`](roles/users) | Admins with **password-protected** sudo, key-only automation account, **restricted sudo** via command allowlist, `su` blocked, exclusive `authorized_keys`, NOPASSWD audit | 5.2.1–5.2.7 |
+| [`password_policy`](roles/password_policy) | Local and sudo passwords: `pam_pwquality` (14+ chars, 4 classes), 365-day expiry, yescrypt hashing, `umask 027` | 5.3.1.3, 5.3.3.2.x, 5.4.1.x, 5.4.3.3 |
 | [`ufw`](roles/ufw) | Default deny, loopback anti-spoofing, SSH rate limiting, port change without lockout | 4.1.1–4.1.7 |
 | [`ssh_hardening`](roles/ssh_hardening) | Keys only, no root, configurable port, `AllowGroups`, modern crypto (including hybrid post-quantum KEX), moduli ≥ 3072 bits | 5.1.1–5.1.22 |
 | [`fail2ban`](roles/fail2ban) | `sshd` jail (aggressive, journald) with progressive bans + `recidive` jail, banning through ufw | defense in depth |
@@ -114,7 +115,7 @@ flowchart LR
 
     subgraph Target["🐧 Ubuntu 22.04 / 24.04"]
         direction TB
-        C[common] --> U[users] --> F[ufw] --> S[ssh_hardening]
+        C[common] --> U[users] --> P[password_policy] --> F[ufw] --> S[ssh_hardening]
         S --> FB[fail2ban] --> K[sysctl_hardening] --> A[auditd] --> UU[unattended_upgrades]
     end
 

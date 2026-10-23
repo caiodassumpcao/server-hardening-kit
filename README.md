@@ -57,7 +57,7 @@ O kit pega um Ubuntu "de fábrica" e o leva a um baseline de segurança
 
 **O que este projeto demonstra**
 
-- **Infraestrutura como código:** 9 roles Ansible reutilizáveis, configuráveis por variáveis, com segredos no Ansible Vault.
+- **Infraestrutura como código:** 10 roles Ansible reutilizáveis, configuráveis por variáveis, com segredos no Ansible Vault.
 - **Segurança aplicada:** cada controle é rastreável até o item do CIS, o teste do Lynis e a técnica do MITRE ATT&CK que ele mitiga ([matriz](docs/CIS_MAPPING.md), [modelo de ameaças](docs/THREAT_MODEL.md)).
 - **Mudança segura em produção:** modo auditoria que só relata sem alterar nada, e troca de porta SSH em duas fases que não tranca o operador fora do servidor.
 - **Testes de infraestrutura:** pirâmide completa (lint → unitário → integração em containers → E2E em VM) rodando no GitHub Actions.
@@ -95,6 +95,7 @@ Relatório detalhado (warnings e sugestões resolvidos e remanescentes):
 |---|---|---|
 | [`common`](roles/common) | Valida o SO, espera o cloud-init, remove clientes legados (telnet/rsh/nis), desabilita módulos de kernel raros e USB storage, restringe core dumps, ativa AppArmor e banner | 1.1.1.x, 1.3, 1.5.3, 1.6, 2.2.x, 3.2.x |
 | [`users`](roles/users) | Admins com sudo **com senha**, conta de automação só com chave, **sudo restrito** por allowlist de comandos, `su` bloqueado, `authorized_keys` exclusivo, auditoria de NOPASSWD | 5.2.1–5.2.7 |
+| [`password_policy`](roles/password_policy) | Senhas locais e de sudo: `pam_pwquality` (14+ caracteres, 4 classes), validade de 365 dias, hash yescrypt, `umask 027` | 5.3.1.3, 5.3.3.2.x, 5.4.1.x, 5.4.3.3 |
 | [`ufw`](roles/ufw) | Default deny, loopback anti-spoofing, rate limit no SSH, troca de porta sem lockout | 4.1.1–4.1.7 |
 | [`ssh_hardening`](roles/ssh_hardening) | Só chave, sem root, porta configurável, `AllowGroups`, criptografia moderna (incl. KEX pós-quântico híbrido), moduli ≥ 3072 bits | 5.1.1–5.1.22 |
 | [`fail2ban`](roles/fail2ban) | Jail `sshd` (aggressive, journald) com banimento progressivo + jail `recidive`, banindo via ufw | defesa em profundidade |
@@ -122,7 +123,7 @@ flowchart LR
 
     subgraph Target["🐧 Ubuntu 22.04 / 24.04"]
         direction TB
-        C[common] --> U[users] --> F[ufw] --> S[ssh_hardening]
+        C[common] --> U[users] --> P[password_policy] --> F[ufw] --> S[ssh_hardening]
         S --> FB[fail2ban] --> K[sysctl_hardening] --> A[auditd] --> UU[unattended_upgrades]
     end
 
@@ -319,7 +320,8 @@ server-hardening-kit/
 │   ├── site.yml                 # hardening (enforce ou --check) + validação pós-deploy
 │   └── audit.yml                # Lynis + coleta do relatório
 ├── roles/                       # common, users, ufw, ssh_hardening, fail2ban,
-│                                # unattended_upgrades, sysctl_hardening, auditd, lynis
+│                                # password_policy, sysctl_hardening, auditd,
+│                                # unattended_upgrades, lynis
 ├── inventories/example/         # modelo (inventories/<seu-ambiente>/ fica fora do Git)
 ├── molecule/default/            # testes de integração
 ├── tests/                       # pytest + inventário do E2E

@@ -16,6 +16,8 @@ common_packages:
   - apt-show-versions # Lynis PKGS-7394
   - debsums # Lynis PKGS-7370
   - libpam-tmpdir # Lynis DEB-0280
+  - acct # Lynis ACCT-9622 — contabilidade de processos (lastcomm/sa)
+  - sysstat # Lynis ACCT-9626 — histórico de CPU/IO/rede (sar), útil em investigação
 
 # CIS 2.2.x — clientes de serviços legados/inseguros.
 common_packages_absent:
