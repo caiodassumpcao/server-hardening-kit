@@ -5,7 +5,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
+    # Só altera requirements.txt quando a faixa atual EXCLUI a versão nova.
+    # Evita PRs que apenas sobem o piso (ex.: ">=25.1" → ">=26.10.1") e
+    # restringiriam sem motivo quem usa versões mais antigas.
+    versioning-strategy: increase-if-necessary
+    groups:
+      python-tooling:
+        patterns: ["*"]

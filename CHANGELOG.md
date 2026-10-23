@@ -5,6 +5,20 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Alterado
+- README reorganizado como visão geral; passo a passo, receitas, recuperação de
+  lockout e troubleshooting movidos para `docs/GUIA.md`. README em inglês com a
+  mesma estrutura.
+- Início rápido corrigido: comandos anteriores ao hardening usam `BOOTSTRAP=1`.
+- `ansible-core` aceito até 2.21.x; Dependabot com `increase-if-necessary` e PRs agrupados.
+
+### Adicionado
+- `CONTRIBUTING.md`.
+
+### Corrigido
+- Dev Container: `ANSIBLE_CONFIG` explícito. Pastas do Windows montadas no
+  container são *world-writable*, e o Ansible ignorava o `ansible.cfg`.
+
 ## [1.0.0] - 2026-10-22
 
 ### Adicionado

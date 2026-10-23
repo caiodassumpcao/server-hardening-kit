@@ -7,6 +7,11 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
+  // Pastas do Windows montadas no container aparecem como 777 (world-writable) e o
+  // Ansible ignora o ansible.cfg do diretório atual; apontar explicitamente resolve.
+  "containerEnv": {
+    "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg"
+  },
   "postCreateCommand": "make install && echo 'source .venv/bin/activate' >> ~/.bashrc",
   "customizations": {
     "vscode": {
