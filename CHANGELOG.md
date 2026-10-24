@@ -11,6 +11,8 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   mesma estrutura.
 - Início rápido corrigido: comandos anteriores ao hardening usam `BOOTSTRAP=1`.
 - `ansible-core` aceito até 2.21.x; Dependabot com `increase-if-necessary` e PRs agrupados.
+- Instalação das coleções com retentativa e espera crescente (`scripts/galaxy-install.sh`),
+  usada pelo `make install` e pelo CI: instabilidades HTTP 5xx do Ansible Galaxy derrubavam o pipeline.
 
 ### Adicionado
 - E2E em **VM real** (LXD/KVM no runner do GitHub) cobrindo o fluxo completo do

@@ -29,7 +29,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: ansible-galaxy collection install -r requirements.yml
+      - run: bash scripts/galaxy-install.sh
       - run: yamllint .
       - run: ansible-lint
 
