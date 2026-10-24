@@ -25,7 +25,7 @@ inventories/*
 
 # Relatórios brutos do Lynis contêm hostnames, IPs e lista de pacotes.
 # Apenas o resumo sanitizado em docs/reports/ é versionado.
-reports/
+/reports/
 
 # Lab local
 lab/cloud-init.yml

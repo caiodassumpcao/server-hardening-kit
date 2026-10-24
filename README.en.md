@@ -5,7 +5,9 @@
 **Automated, measurable hardening of Ubuntu servers with Ansible, mapped to the CIS Benchmark.**
 
 [![CI](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/ci.yml)
+[![E2E VM](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml)
 [![E2E Lynis](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml)
+![Lynis](https://img.shields.io/badge/Lynis-61%20%E2%86%92%2080-success)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)
 ![Ansible](https://img.shields.io/badge/ansible--core-2.17%2B-EE0000?logo=ansible&logoColor=white)
 ![ansible-lint](https://img.shields.io/badge/ansible--lint-production-success)
@@ -52,7 +54,8 @@ with three guarantees:
 | **Problem** | A fresh Ubuntu install accepts password logins and has no firewall or auditing. Hardening it by hand is slow, error-prone and hard to prove. |
 | **Solution** | One command (`make harden`) applies **CIS Benchmark** controls to one or many servers, idempotently, and **Lynis** measures the security gain before/after. |
 | **Stack** | Ansible · Ubuntu 22.04/24.04 · Molecule + Docker · GitHub Actions · Python (pytest) · Lynis · UFW · fail2ban · auditd · AppArmor |
-| **Quality** | ansible-lint `production` profile with 0 failures · Molecule on Ubuntu 22.04 and 24.04 (converge, idempotence and verify) · pytest · E2E with Lynis on a real VM in CI |
+| **Result** | Lynis hardening index **61 → 80** (Ubuntu 22.04) and **61 → 79** (24.04), measured on real VMs |
+| **Quality** | ansible-lint `production` profile with 0 failures · Molecule on Ubuntu 22.04 and 24.04 (check, converge, idempotence and verify) · pytest · full SSH-flow E2E on real VMs in CI |
 
 **What this project demonstrates**
 
@@ -66,19 +69,28 @@ with three guarantees:
 
 ## 📊 Results
 
-Lynis hardening index before and after hardening, **generated** by `make report`
-(not written by hand) and kept in sync with the [Portuguese README](README.md#-resultados).
-The same flow runs weekly on Ubuntu 22.04/24.04 VMs in the
-[E2E Lynis](.github/workflows/e2e-lynis.yml) workflow; each run's *Summary*
-shows the before/after table.
+Lynis hardening index before and after, measured on **real Ubuntu VMs** by the
+[E2E VM](.github/workflows/e2e-vm.yml) workflow, which runs the same walkthrough
+as the guide over SSH (bootstrap, port migration, reboot, audit). The table is
+**generated** by [`scripts/lynis_report.py`](scripts/lynis_report.py) from the raw
+reports ([source run](https://github.com/caiodassumpcao/server-hardening-kit/actions/runs/40010620084)),
+not written by hand. The workflow runs weekly and publishes the updated table in
+each run's *Summary*.
+
+| Host | OS | Lynis | Score before | Score after | Δ | Warnings | Suggestions |
+|---|---|---|:-:|:-:|:-:|:-:|:-:|
+| `ubuntu-22.04` | Ubuntu 22.04 | 3.1.7 | **61** | **80** | +19 | 2 → 1 | 27 → 15 |
+| `ubuntu-24.04` | Ubuntu 24.04 | 3.1.7 | **61** | **79** | +18 | 2 → 1 | 26 → 14 |
 
 Detailed report (resolved and remaining warnings/suggestions):
 [`docs/reports/lynis-comparison.md`](docs/reports/lynis-comparison.md).
 
-> **Why not 100?** Some Lynis tests depend on infrastructure decisions a generic
-> kit shouldn't make on its own (separate partitions, GRUB password, AIDE,
-> antivirus). They are listed under
-> [Out of scope](docs/CIS_MAPPING.md#fora-de-escopo-decisão-consciente).
+> **Why not 100?** The remaining suggestions depend on decisions a generic kit
+> shouldn't make on its own: separate partitions, GRUB password, AIDE, antivirus,
+> `kernel.modules_disabled` (breaks Docker/VPN). Each one is justified under
+> [Out of scope](docs/CIS_MAPPING.md#fora-de-escopo-decisão-consciente). The only
+> remaining warning (`PKGS-7392`) flags pending security updates in the VM image,
+> which `unattended-upgrades` applies on its first daily run.
 
 ---
 
@@ -237,7 +249,8 @@ most used ones:
 | Static | `yamllint` + `ansible-lint` (**production** profile) | Best practices and FQCN | `make lint` | every push/PR |
 | Unit | `pytest` | Lynis report generator | `make test-unit` | every push/PR |
 | Integration | **Molecule** + Docker, Ubuntu 22.04 **and** 24.04 | Converge, **idempotence** (`changed=0`) and effective state (`sshd -T`, `sudo -l`, `apt-config dump`…) | `make test` | every push/PR |
-| End to end | Real playbook + **Lynis** on a GitHub Actions VM | Idempotence and compliant `--check` on a real VM, before/after score | — | push to `main` + weekly |
+| End to end (VM + SSH) | **Real Ubuntu VM** (LXD/KVM) inside the runner, driven by the guide's `make` commands | Bootstrap 22 → 2222, lockout guard, idempotence, reboot, compliant `--check`, Lynis before/after and negative tests (root, password, port 22) | — | PR, push to `main` + weekly |
+| End to end (local) | Playbook applied to the runner itself + **Lynis** | Idempotence and compliant `--check` on a host with real kernel/systemd | — | push to `main` + weekly |
 
 ---
 

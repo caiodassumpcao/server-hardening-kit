@@ -160,8 +160,9 @@ def render_details(comparisons: list[HostComparison]) -> str:
             "",
             f"### Sugestões remanescentes ({len(c.after.suggestions)})",
             "",
-            "Itens que o kit **não** endurece por escolha consciente (ex.: particionamento,",
-            "GRUB password, AIDE) ficam aqui — ver a seção *Fora de escopo* do README.",
+            "Itens que o kit **não** aplica por decisão consciente (particionamento, senha de",
+            "GRUB, AIDE, `kernel.modules_disabled`, `MaxSessions 2`...) ficam aqui, com a",
+            "justificativa em [Fora de escopo](../CIS_MAPPING.md#fora-de-escopo-decisão-consciente).",
             "",
             *_bullet_list(sorted(c.after.suggestions), c.after.suggestions),
             "",
@@ -190,6 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--summary", action="store_true", help="imprime a tabela-resumo no stdout")
     parser.add_argument("--fail-under", type=int, help="falha (exit 1) se algum score final ficar abaixo deste valor")
     args = parser.parse_args(argv)
+
+    # O console do Windows (cp1252) não imprime "Δ"/"→" da tabela.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
     if not args.reports_dir.is_dir():
         print(f"error: {args.reports_dir} does not exist — run make audit-before / audit-after first", file=sys.stderr)
