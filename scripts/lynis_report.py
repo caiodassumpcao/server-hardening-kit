@@ -179,7 +179,8 @@ def update_readme(readme: Path, summary: str) -> bool:
     new_content = content[: start + len(README_START)] + "\n" + summary + "\n" + content[end:]
     if new_content == content:
         return False
-    readme.write_text(new_content, encoding="utf-8")
+    readme.write_text(new_content, encoding="utf-8", newline="
+")
     return True
 
 
@@ -209,7 +210,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(render_details(comparisons), encoding="utf-8")
+        args.output.write_text(render_details(comparisons), encoding="utf-8", newline="
+")
         print(f"wrote {args.output}")
     if args.update_readme:
         changed = update_readme(args.update_readme, summary)
