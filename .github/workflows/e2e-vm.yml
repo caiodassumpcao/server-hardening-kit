@@ -7,7 +7,7 @@ name: E2E VM (SSH flow)
 
 on:
   push:
-    branches: [main, "ci/**"] # ci/** = branches de desenvolvimento de pipeline
+    branches: [main]
   pull_request:
     paths:
       - "roles/**"
@@ -44,8 +44,10 @@ jobs:
       INVENTORY: tests/e2e-vm/hosts.yml
       SSH_OPTS: -i ~/.ssh/e2e -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
@@ -188,7 +190,7 @@ jobs:
 
       - name: Upload reports (Lynis + JUnit do modo auditoria)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-vm-ubuntu-${{ matrix.release }}
           path: reports/

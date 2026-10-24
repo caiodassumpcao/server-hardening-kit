@@ -30,6 +30,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   `dev.tty.ldisc_autoload=0` e `kernel.core_uses_pid=1`; `AllowTcpForwarding no` explícito.
 - Molecule roda `--check` num host "de fábrica" antes do converge.
 - `CONTRIBUTING.md`.
+- Segurança da cadeia de suprimentos: Actions fixadas por SHA de commit,
+  `persist-credentials: false` nos checkouts, varredura de segredos com gitleaks
+  em todo o histórico e OpenSSF Scorecard (badge e Code scanning).
+- Workflow de release: tag `vX.Y.Z` publica a GitHub Release com as notas do CHANGELOG.
+- Templates de issue (bug e melhoria), de pull request e `CODEOWNERS`.
 
 ### Corrigido
 - Dev Container: `ANSIBLE_CONFIG` explícito. Pastas do Windows montadas no

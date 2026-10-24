@@ -1,0 +1,9 @@
+---
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Reportar vulnerabilidade (privado)
+    url: https://github.com/caiodassumpcao/server-hardening-kit/security/advisories/new
+    about: Nunca abra issue pública para falhas de segurança.
+  - name: 📖 Guia completo e troubleshooting
+    url: https://github.com/caiodassumpcao/server-hardening-kit/blob/main/docs/GUIA.md
+    about: Passo a passo, receitas e soluções para problemas comuns.
