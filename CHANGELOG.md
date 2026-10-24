@@ -11,8 +11,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   mesma estrutura.
 - Início rápido corrigido: comandos anteriores ao hardening usam `BOOTSTRAP=1`.
 - `ansible-core` aceito até 2.21.x; Dependabot com `increase-if-necessary` e PRs agrupados.
-- Instalação das coleções com retentativa e espera crescente (`scripts/galaxy-install.sh`),
-  usada pelo `make install` e pelo CI: instabilidades HTTP 5xx do Ansible Galaxy derrubavam o pipeline.
+- Coleções instaladas num único ponto (`scripts/galaxy-install.sh`, usado pelo
+  `make install` e pelo CI): retentativa com espera crescente e, se o Ansible
+  Galaxy seguir fora (HTTP 5xx), fallback para os repositórios oficiais no GitHub
+  em versões fixas (`requirements-fallback.yml`). ansible-lint em modo `offline`
+  e Molecule sem dependência própria do Galaxy; `community.docker` (driver do
+  Molecule) passou a ser declarado.
 
 ### Adicionado
 - E2E em **VM real** (LXD/KVM no runner do GitHub) cobrindo o fluxo completo do
