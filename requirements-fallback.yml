@@ -1,0 +1,19 @@
+---
+# Fallback usado por scripts/galaxy-install.sh quando o Ansible Galaxy está fora:
+# as mesmas coleções, direto dos repositórios oficiais no GitHub, em versões fixas.
+# Mantenha alinhado ao requirements.yml (as versões aqui devem satisfazê-lo).
+collections:
+  - name: https://github.com/ansible-collections/ansible.posix.git
+    type: git
+    version: 2.2.2
+  - name: https://github.com/ansible-collections/community.general.git
+    type: git
+    version: 13.5.0
+  - name: https://github.com/ansible-collections/community.docker.git
+    type: git
+    version: 5.4.0
+  # Dependência transitiva do community.general >= 9 e do community.docker. Declarada aqui porque o
+  # fallback instala com --no-deps (senão ela seria buscada... no Galaxy).
+  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git
+    type: git
+    version: 1.1.5

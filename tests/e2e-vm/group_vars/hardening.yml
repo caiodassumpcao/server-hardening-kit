@@ -1,0 +1,21 @@
+---
+# Variáveis do E2E em VM real (.github/workflows/e2e-vm.yml).
+# O hosts.yml ao lado é gerado pelo workflow com o IP da VM criada no runner.
+hardening_ssh_port: 2222
+# Rede do bridge do LXD: o runner faz várias conexões e testes negativos de
+# login; sem isso o próprio fail2ban baniria o controller no meio do teste.
+hardening_trusted_networks: ["10.0.0.0/8"]
+
+users_automation:
+  enabled: true
+  name: ansible
+  ssh_keys:
+    - "{{ lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'HOME') ~ '/.ssh/e2e.pub') }}"
+
+users_admins:
+  - name: alice
+    comment: E2E admin
+    ssh_keys:
+      - "{{ lookup('ansible.builtin.file', lookup('ansible.builtin.env', 'HOME') ~ '/.ssh/e2e.pub') }}"
+    # Hash de uma senha descartável, usado só neste teste.
+    password_hash: "$6$moleculesalt$Q20u8.gTU4MrUcr0Tu77Z.cD1usFcSjR.acnONpug5JEXwQmgzp9KmO46wVX534iKPODyUBN3ukIZvUdRPOMm/"

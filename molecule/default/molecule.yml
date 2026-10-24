@@ -2,10 +2,11 @@
 # Cenário principal: aplica o playbook REAL (playbooks/site.yml) em containers
 # Ubuntu com systemd e valida o estado final com asserções Ansible.
 #   MOLECULE_DISTRO=ubuntu2204 molecule test
+# As coleções vêm do "make install" (scripts/galaxy-install.sh, com retentativa
+# e fallback para o GitHub); o Molecule não deve depender do Galaxy por conta própria.
 dependency:
   name: galaxy
-  options:
-    requirements-file: ${MOLECULE_PROJECT_DIRECTORY}/requirements.yml
+  enabled: false
 
 driver:
   name: docker
@@ -71,6 +72,8 @@ scenario:
     - syntax
     - create
     - prepare
+    # Modo auditoria num host "de fábrica": precisa rodar sem falhar (só relatar).
+    - check
     - converge
     - idempotence
     - verify

@@ -52,8 +52,12 @@ TCPKeepAlive no
 
 # --- Superfície de ataque -----------------------------------------------------
 {% if ssh_hardening_disable_forwarding | bool %}
-# CIS 5.1.8
+# CIS 5.1.8 — DisableForwarding já cobre tudo; os explícitos abaixo deixam o
+# efetivo (sshd -T) auditável por ferramentas que checam cada opção (Lynis SSH-7408).
 DisableForwarding yes
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+GatewayPorts no
 {% endif %}
 X11Forwarding no
 AllowAgentForwarding no

@@ -160,8 +160,9 @@ def render_details(comparisons: list[HostComparison]) -> str:
             "",
             f"### Sugestões remanescentes ({len(c.after.suggestions)})",
             "",
-            "Itens que o kit **não** endurece por escolha consciente (ex.: particionamento,",
-            "GRUB password, AIDE) ficam aqui — ver a seção *Fora de escopo* do README.",
+            "Itens que o kit **não** aplica por decisão consciente (particionamento, senha de",
+            "GRUB, AIDE, `kernel.modules_disabled`, `MaxSessions 2`...) ficam aqui, com a",
+            "justificativa em [Fora de escopo](../CIS_MAPPING.md#fora-de-escopo-decisão-consciente).",
             "",
             *_bullet_list(sorted(c.after.suggestions), c.after.suggestions),
             "",
@@ -178,7 +179,7 @@ def update_readme(readme: Path, summary: str) -> bool:
     new_content = content[: start + len(README_START)] + "\n" + summary + "\n" + content[end:]
     if new_content == content:
         return False
-    readme.write_text(new_content, encoding="utf-8")
+    readme.write_text(new_content, encoding="utf-8", newline="\n")
     return True
 
 
@@ -190,6 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--summary", action="store_true", help="imprime a tabela-resumo no stdout")
     parser.add_argument("--fail-under", type=int, help="falha (exit 1) se algum score final ficar abaixo deste valor")
     args = parser.parse_args(argv)
+
+    # O console do Windows (cp1252) não imprime "Δ"/"→" da tabela.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
     if not args.reports_dir.is_dir():
         print(f"error: {args.reports_dir} does not exist — run make audit-before / audit-after first", file=sys.stderr)
@@ -204,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(render_details(comparisons), encoding="utf-8")
+        args.output.write_text(render_details(comparisons), encoding="utf-8", newline="\n")
         print(f"wrote {args.output}")
     if args.update_readme:
         changed = update_readme(args.update_readme, summary)

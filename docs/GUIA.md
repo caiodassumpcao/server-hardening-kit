@@ -316,7 +316,7 @@ O que acontece, na ordem:
 3. **ufw**: libera **2222 e 22**, aplica default deny e ativa o firewall.
 4. **ssh_hardening**: verifica o *lockout guard*, aplica o drop-in validado
    com `sshd -t` e reinicia o `sshd`.
-5. **fail2ban**, **unattended_upgrades**, **sysctl_hardening** e **auditd**.
+5. **fail2ban**, **sysctl_hardening**, **auditd** e, por último, **unattended_upgrades** (ativar os timers do apt antes faria o `apt-daily` disputar o lock com as instalações).
 6. **Validação**: o controller abre uma sessão **nova** com
    `ansible@IP -p 2222`. Se ela falhar, o playbook falha e a porta 22 continua aberta.
 

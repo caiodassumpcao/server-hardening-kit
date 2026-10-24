@@ -35,6 +35,10 @@ users_restricted: []
 # Contas a remover (ex.: ex-colaboradores).
 users_absent: []
 
+# CIS 5.4.1.1 / 5.4.1.2 — validade da senha de sudo dos admins.
+users_password_max_days: 365
+users_password_min_days: 1
+
 # CIS 5.2.x — defaults globais do sudo.
 users_sudo_logfile: /var/log/sudo.log
 users_sudo_timestamp_timeout: 15

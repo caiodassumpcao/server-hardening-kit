@@ -33,10 +33,33 @@
     - not common_is_container | bool
     - common_cloud_init_bin.stat.exists
 
+# apt-daily/apt-daily-upgrade seguram /var/cache/apt/archives/lock, que o
+# lock_timeout do apt NÃO cobre (só o lock do dpkg). Esperar evita falhas de
+# instalação intermitentes em hosts com os timers ativos (detectado no E2E).
+# noqa justificado: precisamos do estado transitório "activating" do
+# "systemctl is-active", que o módulo systemd/service_facts não expõe.
+- name: Wait for background apt jobs (apt-daily) to finish
+  ansible.builtin.command: systemctl is-active apt-daily.service apt-daily-upgrade.service # noqa: command-instead-of-module
+  register: common_apt_jobs
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  until: >-
+    'active' not in common_apt_jobs.stdout_lines
+    and 'activating' not in common_apt_jobs.stdout_lines
+  retries: 90
+  delay: 10
+  when: not common_is_container | bool
+
+# Roda de verdade mesmo em --check: só atualiza o índice de pacotes (não muda
+# configuração). Sem isso, em hosts com cache vazio (imagens de nuvem/containers)
+# o modo auditoria acusaria "No package matching ... is available".
 - name: Refresh apt cache
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: "{{ common_apt_cache_valid_time }}"
+  check_mode: false
+  changed_when: false
 
 - name: Gather installed packages (used for check-mode guards in other roles)
   ansible.builtin.package_facts:
@@ -46,6 +69,53 @@
   ansible.builtin.apt:
     name: "{{ common_packages }}"
     state: present
+
+- name: Enable periodic package integrity check (debsums, Lynis PKGS-7370)
+  ansible.builtin.lineinfile:
+    path: /etc/default/debsums
+    regexp: "^CRON_CHECK="
+    line: CRON_CHECK=weekly
+    owner: root
+    group: root
+    mode: "0644"
+  when: not ansible_check_mode or 'debsums' in ansible_facts['packages']
+
+- name: Enable sysstat data collection (Lynis ACCT-9626)
+  ansible.builtin.lineinfile:
+    path: /etc/default/sysstat
+    regexp: "^ENABLED="
+    line: ENABLED="true"
+    owner: root
+    group: root
+    mode: "0644"
+  when: not ansible_check_mode or 'sysstat' in ansible_facts['packages']
+
+# Kernels enxutos (ex.: linux-kvm de imagens de VM/nuvem) podem vir sem BSD
+# process accounting; nesse caso o acct.service falha ao subir. O kernel expõe
+# /proc/sys/kernel/acct apenas quando o recurso existe.
+- name: Check kernel support for process accounting
+  ansible.builtin.stat:
+    path: /proc/sys/kernel/acct
+  register: common_kernel_acct
+
+- name: Ensure accounting services are enabled
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ ['sysstat'] + (['acct'] if common_kernel_acct.stat.exists else []) }}"
+  when:
+    - not common_is_container | bool
+    - not ansible_check_mode or item in ansible_facts['packages']
+
+- name: Disable acct on kernels without process accounting support
+  ansible.builtin.systemd_service:
+    name: acct
+    enabled: false
+  when:
+    - not common_is_container | bool
+    - not common_kernel_acct.stat.exists
+    - "'acct' in ansible_facts['packages'] or not ansible_check_mode"
 
 - name: CIS 2.2.x | Remove insecure legacy client packages
   ansible.builtin.apt:
@@ -93,6 +163,28 @@
     - { option: Storage, value: none }
     - { option: ProcessSizeMax, value: "0" }
   when: "'systemd-coredump' in ansible_facts['packages']"
+
+# O apport sobe no boot DEPOIS do systemd-sysctl e reescreve fs.suid_dumpable=2,
+# desfazendo o CIS 1.5.3 a cada reinicialização (detectado pelo E2E em VM real).
+- name: CIS 1.5.5 | Disable automatic error reporting (apport)
+  when: "'apport' in ansible_facts['packages']"
+  block:
+    - name: CIS 1.5.5 | Disable apport in its defaults file
+      ansible.builtin.lineinfile:
+        path: /etc/default/apport
+        regexp: "^enabled="
+        line: enabled=0
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: CIS 1.5.5 | Stop and mask the apport service
+      ansible.builtin.systemd_service:
+        name: apport
+        state: stopped
+        enabled: false
+        masked: true
+      when: not common_is_container | bool
 
 - name: CIS 1.6.x | Configure local login warning banner
   ansible.builtin.copy:

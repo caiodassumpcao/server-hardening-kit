@@ -23,7 +23,7 @@ mitiga ou detecta, e **como verificar** manualmente no servidor.
 | Banner legal (`Banner /etc/issue.net`) | 5.1.5 | BANN-7130 | — | 🛡️ | `cat /etc/issue.net` |
 | Ciphers fortes (AEAD/CTR) | 5.1.6 | SSH-7408 | T1557 Adversary-in-the-Middle | 🛡️ | `sshd -T \| grep ^ciphers` |
 | `ClientAliveInterval 300` / `ClientAliveCountMax 2` | 5.1.7 | SSH-7408 | T1563 Remote Service Session Hijacking | 🛡️ | `sshd -T \| grep clientalive` |
-| `DisableForwarding yes` (X11, agent, TCP) | 5.1.8 | SSH-7408 | T1572 Protocol Tunneling · T1090 Proxy | 🛡️ | `sshd -T \| grep disableforwarding` |
+| `DisableForwarding yes` + `AllowTcpForwarding no` explícito (X11, agent, TCP, sockets) | 5.1.8 | SSH-7408 | T1572 Protocol Tunneling · T1090 Proxy | 🛡️ | `sshd -T \| grep disableforwarding` |
 | `GSSAPIAuthentication no` | 5.1.9 | — | — | 🛡️ | `sshd -T \| grep gssapi` |
 | `HostbasedAuthentication no` | 5.1.10 | — | T1078 | 🛡️ | `sshd -T \| grep hostbased` |
 | `IgnoreRhosts yes` | 5.1.11 | — | T1078 | 🛡️ | `sshd -T \| grep ignorerhosts` |
@@ -104,7 +104,7 @@ mitiga ou detecta, e **como verificar** manualmente no servidor.
 | ASLR completo (`kernel.randomize_va_space=2`) | 1.5.1 | KRNL-6000 | T1203 Exploitation for Client Execution | 🛡️ | `sysctl kernel.randomize_va_space` |
 | `kernel.yama.ptrace_scope=1` | 1.5.2 | KRNL-6000 | T1055.008 Ptrace System Calls | 🛡️ | `sysctl kernel.yama.ptrace_scope` |
 | Core dumps restritos (`fs.suid_dumpable=0` + limits + coredump.conf) | 1.5.3 | KRNL-5820 | T1003.007 Proc Filesystem (credenciais em memória) | 🛡️ | `sysctl fs.suid_dumpable` |
-| `dmesg_restrict`, `kptr_restrict=2`, `sysrq=0`, BPF restrito | — | KRNL-6000 | T1082 System Information Discovery · T1068 | 🛡️ | `sysctl -a \| grep -E 'dmesg\|kptr\|bpf'` |
+| `dmesg_restrict`, `kptr_restrict=2`, `sysrq=0`, BPF restrito, `dev.tty.ldisc_autoload=0` | — | KRNL-6000 | T1082 System Information Discovery · T1068 | 🛡️ | `sysctl -a \| grep -E 'dmesg\|kptr\|bpf'` |
 | `fs.protected_*` (hard/symlinks, fifos, regular) | — | KRNL-6000 | T1574 Hijack Execution Flow | 🛡️ | `sysctl -a \| grep fs.protected` |
 | IP forwarding desligado (v4/v6) | 3.3.1 | KRNL-6000 | T1090 Proxy · T1599 Network Boundary Bridging | 🛡️ | `sysctl net.ipv4.ip_forward` |
 | Não enviar redirects | 3.3.2 | KRNL-6000 | T1557 | 🛡️ | `sysctl net.ipv4.conf.all.send_redirects` |
@@ -133,7 +133,21 @@ mitiga ou detecta, e **como verificar** manualmente no servidor.
 | Chave de automação restrita por origem (`from="..."`) | — | — | T1078 · T1021.004 | 🛡️ | `cat ~ansible/.ssh/authorized_keys` |
 | Remoção de contas desativadas | — | — | T1078 | ♻️ | `getent passwd <user>` |
 
-## 8. Baseline do sistema — `roles/common`
+## 8. Política de senhas — `roles/password_policy`
+
+Vale para senha **local** (console e sudo): o SSH já não aceita senha.
+
+| Controle | CIS | Lynis | ATT&CK | Tipo | Verificação |
+|---|---|---|---|---|---|
+| `pam_pwquality` instalado | 5.3.1.3 | AUTH-9262 | T1110.001 Password Guessing | 🛡️ | `dpkg -l libpam-pwquality` |
+| Qualidade: `minlen 14`, `minclass 4`, `difok`, `maxrepeat`, `maxsequence`, `dictcheck`, `enforce_for_root` | 5.3.3.2.1–5.3.3.2.8 | AUTH-9262 | T1110 | 🛡️ | `cat /etc/security/pwquality.conf.d/50-hardening.conf` |
+| `PASS_MAX_DAYS 365` (login.defs + admins existentes) | 5.4.1.1 | AUTH-9286 · AUTH-9282 | T1078 | 🛡️ | `chage -l <admin>` |
+| `PASS_MIN_DAYS 1` | 5.4.1.2 | AUTH-9286 | T1078 | 🛡️ | `grep ^PASS_MIN /etc/login.defs` |
+| `PASS_WARN_AGE 7` | 5.4.1.3 | — | — | 🛡️ | `grep ^PASS_WARN /etc/login.defs` |
+| Hash forte (`YESCRYPT`, custo 7; rounds para SHA512) | 5.4.1.4 | AUTH-9230 | T1110.002 Password Cracking | 🛡️ | `grep -E '^(ENCRYPT_METHOD\|YESCRYPT)' /etc/login.defs` |
+| `UMASK 027` | 5.4.3.3 | AUTH-9328 | T1222 | 🛡️ | `grep ^UMASK /etc/login.defs` |
+
+## 9. Baseline do sistema — `roles/common`
 
 | Controle | CIS | Lynis | ATT&CK | Tipo | Verificação |
 |---|---|---|---|---|---|
@@ -141,9 +155,11 @@ mitiga ou detecta, e **como verificar** manualmente no servidor.
 | `usb-storage` desabilitado | 1.1.1.x | USB-1000 | T1052.001 Exfiltration over USB · T1091 | 🛡️ | `modprobe -n -v usb-storage` |
 | Protocolos raros desabilitados (dccp, sctp, rds, tipc) | 3.2.x | NETW-3200 | T1068 | 🛡️ | `modprobe -n -v dccp` |
 | AppArmor ativo | 1.3.1.x | MACF-6208 | T1068 (contenção) | 🛡️ | `aa-status` |
+| apport desativado e mascarado (no boot ele reescrevia `fs.suid_dumpable=2`) | 1.5.5 | — | T1003.007 Proc Filesystem | 🛡️ | `systemctl is-enabled apport` → `masked` |
 | Banner de login local | 1.6.x | BANN-7126 | — | 🛡️ | `cat /etc/issue` |
 | Clientes legados removidos (telnet, rsh, nis, talk, ftp) | 2.2.x | — | T1040 Network Sniffing (protocolos em texto claro) | 🛡️ | `dpkg -l telnet rsh-client` |
-| `debsums`, `apt-show-versions`, `libpam-tmpdir` | — | PKGS-7370 · PKGS-7394 · DEB-0280 | T1036 (integridade de pacotes) | 🔎 | `dpkg -l debsums` |
+| `debsums` com verificação semanal, `apt-show-versions`, `libpam-tmpdir` | — | PKGS-7370 · PKGS-7394 · DEB-0280 | T1036 (integridade de pacotes) | 🔎 | `grep CRON_CHECK /etc/default/debsums` |
+| Contabilidade de processos (`acct`) e histórico de recursos (`sysstat`) | — | ACCT-9622 · ACCT-9626 | — (suporta investigação) | 🔎 | `lastcomm \| head` · `sar -u` |
 
 ## Fora de escopo (decisão consciente)
 
@@ -157,3 +173,8 @@ genéricos, ou por dependerem de decisões de infraestrutura:
 | AIDE (integridade de arquivos) | 6.3.x | Útil, mas gera ruído sem um processo de revisão; previsto no roadmap. |
 | Complexidade de senha / `pam_faillock` | 5.3.x | O kit elimina login por senha no SSH; regras de PAM ficam para ambientes com login local. |
 | Envio de logs para servidor remoto | 6.1.x | Depende do SIEM da organização (roadmap: role de journald/rsyslog remoto). |
+| `kernel.modules_disabled=1` (Lynis KRNL-6000) | — | Trava o carregamento de **qualquer** módulo até o reboot: quebra VPN, Docker, hotplug de disco/rede. |
+| `MaxSessions 2` (Lynis SSH-7408 prefere 2; o kit usa 4) | 5.1.17 | O CIS aceita ≤ 10; 2 quebra o multiplexing de ferramentas (Ansible, VS Code Remote) sem ganho real. |
+| Scanner de malware (`rkhunter`/`chkrootkit`, Lynis HRDN-7230) | — | Muitos falsos positivos sem curadoria; detecção de malware é papel de EDR/SIEM. |
+| Hardening de unidades systemd (Lynis BOOT-5264) | — | Específico de cada serviço da aplicação (`systemd-analyze security`). |
+| FQDN em `/etc/hosts` (Lynis NAME-4404) | — | Depende do DNS/convenção de nomes do ambiente. |

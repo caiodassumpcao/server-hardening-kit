@@ -38,6 +38,9 @@
     append: true
     password: "{{ item.password_hash | default(omit) }}"
     update_password: always
+    # CIS 5.4.1.1 / 5.4.1.2 — só para quem tem senha (login.defs vale só para contas novas).
+    password_expire_max: "{{ users_password_max_days if item.password_hash is defined else omit }}"
+    password_expire_min: "{{ users_password_min_days if item.password_hash is defined else omit }}"
     create_home: true
     state: "{{ item.state | default('present') }}"
   loop: "{{ users_admins }}"

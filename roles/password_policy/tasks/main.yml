@@ -1,0 +1,49 @@
+---
+- name: CIS 5.4.1.x / 5.4.3.3 | Configure password aging, umask and hashing in login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^\s*#?\s*{{ item.key }}\s'
+    line: "{{ item.key }}\t{{ item.value }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { key: PASS_MAX_DAYS, value: "{{ password_policy_max_days }}" }
+    - { key: PASS_MIN_DAYS, value: "{{ password_policy_min_days }}" }
+    - { key: PASS_WARN_AGE, value: "{{ password_policy_warn_age }}" }
+    - { key: UMASK, value: "{{ password_policy_umask }}" }
+    - { key: ENCRYPT_METHOD, value: "{{ password_policy_encrypt_method }}" }
+    - { key: YESCRYPT_COST_FACTOR, value: "{{ password_policy_yescrypt_cost_factor }}" }
+    - { key: SHA_CRYPT_MIN_ROUNDS, value: "{{ password_policy_sha_crypt_min_rounds }}" }
+    - { key: SHA_CRYPT_MAX_ROUNDS, value: "{{ password_policy_sha_crypt_max_rounds }}" }
+  loop_control:
+    label: "{{ item.key }} {{ item.value }}"
+
+- name: CIS 5.3.1.3 | Install pam_pwquality
+  ansible.builtin.apt:
+    name: libpam-pwquality
+    state: present
+
+- name: Ensure pwquality drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/security/pwquality.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Drop-in em pwquality.conf.d: não conflita com o conffile do pacote em upgrades.
+- name: CIS 5.3.3.2.x | Configure password quality requirements
+  ansible.builtin.copy:
+    dest: /etc/security/pwquality.conf.d/50-hardening.conf
+    content: |
+      # Managed by server-hardening-kit (CIS 5.3.3.2.x)
+      {% for key, value in password_policy_pwquality.items() %}
+      {{ key }} = {{ value }}
+      {% endfor %}
+      # CIS 5.3.3.2.8 — vale também quando o root troca senhas
+      enforce_for_root
+    owner: root
+    group: root
+    mode: "0644"
+  when: not ansible_check_mode or 'libpam-pwquality' in ansible_facts['packages']

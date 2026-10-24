@@ -5,7 +5,9 @@
 **Hardening automatizado e mensurável de servidores Ubuntu com Ansible, mapeado ao CIS Benchmark.**
 
 [![CI](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/ci.yml)
+[![E2E VM](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml)
 [![E2E Lynis](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml)
+![Lynis](https://img.shields.io/badge/Lynis-61%20%E2%86%92%2080-success)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)
 ![Ansible](https://img.shields.io/badge/ansible--core-2.17%2B-EE0000?logo=ansible&logoColor=white)
 ![ansible-lint](https://img.shields.io/badge/ansible--lint-production-success)
@@ -53,11 +55,12 @@ O kit pega um Ubuntu "de fábrica" e o leva a um baseline de segurança
 | **Problema** | Um Ubuntu recém-instalado aceita login por senha, não tem firewall nem auditoria. Endurecer na mão é lento, sujeito a erro e difícil de provar. |
 | **Solução** | Um comando (`make harden`) aplica controles do **CIS Benchmark** em um ou vários servidores, de forma idempotente, e o **Lynis** mede o ganho de segurança antes/depois. |
 | **Stack** | Ansible · Ubuntu 22.04/24.04 · Molecule + Docker · GitHub Actions · Python (pytest) · Lynis · UFW · fail2ban · auditd · AppArmor |
-| **Qualidade** | ansible-lint perfil `production` com 0 falhas · Molecule em Ubuntu 22.04 e 24.04 (converge, idempotência e verify) · pytest · E2E com Lynis em VM real no CI |
+| **Resultado** | Lynis hardening index **61 → 80** (Ubuntu 22.04) e **61 → 79** (24.04), medido em VM real |
+| **Qualidade** | ansible-lint perfil `production` com 0 falhas · Molecule em Ubuntu 22.04 e 24.04 (check, converge, idempotência e verify) · pytest · E2E do fluxo SSH completo em VM real no CI |
 
 **O que este projeto demonstra**
 
-- **Infraestrutura como código:** 9 roles Ansible reutilizáveis, configuráveis por variáveis, com segredos no Ansible Vault.
+- **Infraestrutura como código:** 10 roles Ansible reutilizáveis, configuráveis por variáveis, com segredos no Ansible Vault.
 - **Segurança aplicada:** cada controle é rastreável até o item do CIS, o teste do Lynis e a técnica do MITRE ATT&CK que ele mitiga ([matriz](docs/CIS_MAPPING.md), [modelo de ameaças](docs/THREAT_MODEL.md)).
 - **Mudança segura em produção:** modo auditoria que só relata sem alterar nada, e troca de porta SSH em duas fases que não tranca o operador fora do servidor.
 - **Testes de infraestrutura:** pirâmide completa (lint → unitário → integração em containers → E2E em VM) rodando no GitHub Actions.
@@ -67,25 +70,31 @@ O kit pega um Ubuntu "de fábrica" e o leva a um baseline de segurança
 
 ## 📊 Resultados
 
-Hardening index do Lynis antes e depois do hardening. A tabela é **gerada** pelo
-`make report` ([passo 13 do guia](docs/GUIA.md#13-medir-o-resultado-lynis-depois-e-publicar)),
-não escrita à mão. O mesmo fluxo roda toda semana em VMs Ubuntu 22.04/24.04 no
-workflow [E2E Lynis](.github/workflows/e2e-lynis.yml), e o resultado fica no
-*Summary* de cada execução.
+Hardening index do Lynis antes e depois, medido em **VMs Ubuntu reais** pelo
+workflow [E2E VM](.github/workflows/e2e-vm.yml). Ele executa o mesmo passo a passo
+do guia, por SSH: bootstrap, migração de porta, reboot e auditoria. A tabela é
+**gerada** pelo [`scripts/lynis_report.py`](scripts/lynis_report.py) a partir dos
+relatórios brutos ([execução de origem](https://github.com/caiodassumpcao/server-hardening-kit/actions/runs/40010620084)),
+não escrita à mão. O workflow roda toda semana, e cada execução publica a tabela
+atualizada no *Summary*.
 
 <!-- LYNIS:START -->
 | Host | SO | Lynis | Score antes | Score depois | Δ | Warnings | Sugestões |
 |---|---|---|:-:|:-:|:-:|:-:|:-:|
-| _execute o passo a passo e rode `make report`_ | — | — | — | — | — | — | — |
+| `ubuntu-22.04` | Ubuntu 22.04 | 3.1.7 | **61** | **80** | +19 | 2 → 1 | 27 → 15 |
+| `ubuntu-24.04` | Ubuntu 24.04 | 3.1.7 | **61** | **79** | +18 | 2 → 1 | 26 → 14 |
 <!-- LYNIS:END -->
 
 Relatório detalhado (warnings e sugestões resolvidos e remanescentes):
 [`docs/reports/lynis-comparison.md`](docs/reports/lynis-comparison.md).
 
-> **Por que não 100?** Alguns testes do Lynis dependem de decisões de
-> infraestrutura que um kit genérico não deve tomar sozinho (partições separadas,
-> senha de GRUB, AIDE, antivírus). Estão listados em
-> [Fora de escopo](docs/CIS_MAPPING.md#fora-de-escopo-decisão-consciente).
+> **Por que não 100?** As sugestões restantes dependem de decisões que um kit
+> genérico não deve tomar sozinho: partições separadas, senha de GRUB, AIDE,
+> antivírus, `kernel.modules_disabled` (quebra Docker/VPN). Cada uma está
+> justificada em [Fora de escopo](docs/CIS_MAPPING.md#fora-de-escopo-decisão-consciente).
+> O único warning remanescente (`PKGS-7392`) aponta pacotes com atualização de
+> segurança pendente na imagem da VM; o `unattended-upgrades` os aplica no
+> primeiro ciclo diário.
 
 ---
 
@@ -95,6 +104,7 @@ Relatório detalhado (warnings e sugestões resolvidos e remanescentes):
 |---|---|---|
 | [`common`](roles/common) | Valida o SO, espera o cloud-init, remove clientes legados (telnet/rsh/nis), desabilita módulos de kernel raros e USB storage, restringe core dumps, ativa AppArmor e banner | 1.1.1.x, 1.3, 1.5.3, 1.6, 2.2.x, 3.2.x |
 | [`users`](roles/users) | Admins com sudo **com senha**, conta de automação só com chave, **sudo restrito** por allowlist de comandos, `su` bloqueado, `authorized_keys` exclusivo, auditoria de NOPASSWD | 5.2.1–5.2.7 |
+| [`password_policy`](roles/password_policy) | Senhas locais e de sudo: `pam_pwquality` (14+ caracteres, 4 classes), validade de 365 dias, hash yescrypt, `umask 027` | 5.3.1.3, 5.3.3.2.x, 5.4.1.x, 5.4.3.3 |
 | [`ufw`](roles/ufw) | Default deny, loopback anti-spoofing, rate limit no SSH, troca de porta sem lockout | 4.1.1–4.1.7 |
 | [`ssh_hardening`](roles/ssh_hardening) | Só chave, sem root, porta configurável, `AllowGroups`, criptografia moderna (incl. KEX pós-quântico híbrido), moduli ≥ 3072 bits | 5.1.1–5.1.22 |
 | [`fail2ban`](roles/fail2ban) | Jail `sshd` (aggressive, journald) com banimento progressivo + jail `recidive`, banindo via ufw | defesa em profundidade |
@@ -122,8 +132,8 @@ flowchart LR
 
     subgraph Target["🐧 Ubuntu 22.04 / 24.04"]
         direction TB
-        C[common] --> U[users] --> F[ufw] --> S[ssh_hardening]
-        S --> FB[fail2ban] --> UU[unattended_upgrades] --> K[sysctl_hardening] --> A[auditd]
+        C[common] --> U[users] --> P[password_policy] --> F[ufw] --> S[ssh_hardening]
+        S --> FB[fail2ban] --> K[sysctl_hardening] --> A[auditd] --> UU[unattended_upgrades]
     end
 
     INV --> PB
@@ -260,7 +270,8 @@ comentados com o item CIS correspondente. O ponto de partida é
 | Estática | `yamllint` + `ansible-lint` (perfil **production**) | Boas práticas e FQCN | `make lint` | todo push/PR |
 | Unitária | `pytest` | Gerador do relatório Lynis | `make test-unit` | todo push/PR |
 | Integração | **Molecule** + Docker, Ubuntu 22.04 **e** 24.04 | Converge, **idempotência** (`changed=0`) e estado efetivo (`sshd -T`, `sudo -l`, `apt-config dump`…) | `make test` | todo push/PR |
-| Ponta a ponta | Playbook real + **Lynis** em VM do GitHub Actions | Idempotência e `--check` conforme em VM real, score antes/depois | — | push na `main` + semanal |
+| Ponta a ponta (VM + SSH) | **VM Ubuntu real** (LXD/KVM) dentro do runner, com os mesmos `make` do guia | Bootstrap pela 22 → 2222, lockout guard, idempotência, reboot, `--check` conforme, Lynis antes/depois e ataques negativos (root, senha, porta 22) | — | PR, push na `main` + semanal |
+| Ponta a ponta (local) | Playbook aplicado no próprio runner + **Lynis** | Idempotência e `--check` conforme num host com kernel/systemd reais | — | push na `main` + semanal |
 
 ```bash
 make test                                 # Molecule no Ubuntu 24.04 (padrão)
@@ -319,7 +330,8 @@ server-hardening-kit/
 │   ├── site.yml                 # hardening (enforce ou --check) + validação pós-deploy
 │   └── audit.yml                # Lynis + coleta do relatório
 ├── roles/                       # common, users, ufw, ssh_hardening, fail2ban,
-│                                # unattended_upgrades, sysctl_hardening, auditd, lynis
+│                                # password_policy, sysctl_hardening, auditd,
+│                                # unattended_upgrades, lynis
 ├── inventories/example/         # modelo (inventories/<seu-ambiente>/ fica fora do Git)
 ├── molecule/default/            # testes de integração
 ├── tests/                       # pytest + inventário do E2E

@@ -34,7 +34,7 @@ install: ## Cria o virtualenv e instala Ansible, lint, Molecule e coleções
 	$(PYTHON) -m venv $(VENV)
 	$(BIN)/pip install --upgrade pip
 	$(BIN)/pip install -r requirements.txt
-	$(BIN)/ansible-galaxy collection install -r requirements.yml
+	bash scripts/galaxy-install.sh $(BIN)/ansible-galaxy
 
 lab-init: ## Cria inventories/lab/ a partir do exemplo (não versionado)
 	@if [ -d inventories/lab ]; then echo "inventories/lab já existe"; else \

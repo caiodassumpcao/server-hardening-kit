@@ -22,6 +22,9 @@
     owner: root
     group: root
     mode: "0644"
+  # Em --check num host sem fail2ban o diretório não existe e o template falharia;
+  # a task de instalação acima já reporta o controle como não conforme.
+  when: not ansible_check_mode or 'fail2ban' in ansible_facts['packages']
   notify: Restart fail2ban
 
 - name: Ensure fail2ban is enabled and running
