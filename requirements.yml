@@ -4,3 +4,8 @@ collections:
     version: ">=1.5.4"
   - name: community.general
     version: ">=8.0.0"
+  # Só para os testes: driver Docker do Molecule. Declarado aqui (e não deixado
+  # para o Molecule baixar sozinho) para que toda dependência passe pelo
+  # scripts/galaxy-install.sh, com retentativa e fallback para o GitHub.
+  - name: community.docker
+    version: ">=3.0.0"

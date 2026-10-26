@@ -14,4 +14,6 @@ mock_roles: []
 skip_list: []
 warn_list: []
 
-offline: false
+# As coleções são instaladas uma única vez por scripts/galaxy-install.sh (com
+# retentativa e fallback para o GitHub); o lint não deve depender do Galaxy.
+offline: true

@@ -66,6 +66,15 @@
       loop_control:
         label: "{{ item.0 }} -> {{ item.1 }}/tcp"
 
+    - name: Read rules currently defined in ufw
+      ansible.builtin.command: ufw show added
+      register: ufw_added_rules
+      changed_when: false
+      check_mode: false
+
+    # Só tenta remover se ainda existir regra para a porta: em --check, o módulo
+    # reporta "changed" ao simular a remoção de uma regra inexistente, e um host
+    # já conforme apareceria como fora do padrão (detectado pelo E2E em VM real).
     - name: Remove legacy SSH ports (only those we are NOT connected through)
       community.general.ufw:
         rule: "{{ ufw_ssh_rule }}"
@@ -79,6 +88,7 @@
            | list }}
       loop_control:
         label: "{{ item.0 }} -> {{ item.1 }}/tcp"
+      when: ufw_added_rules.stdout is search('(\s' ~ item.1 ~ '/tcp|port ' ~ item.1 ~ ' proto tcp)')
 
     - name: CIS 4.1.6 | Apply application rules
       community.general.ufw:

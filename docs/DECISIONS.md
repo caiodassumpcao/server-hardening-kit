@@ -146,6 +146,13 @@ continuam sendo uma decisão operacional: o `motd` e o próprio playbook avisam
 quando há reboot pendente. Em frotas atrás de load balancer, ative
 `unattended_upgrades_automatic_reboot`.
 
+**Ordem de execução.** A role roda **por último**. Ao ativar os timers, o
+`apt-daily` dispara na hora e segura `/var/cache/apt/archives/lock`, que o
+`lock_timeout` do apt não cobre. Se rodasse antes, as instalações das roles
+seguintes falhariam de forma intermitente; o E2E em VM real pegou exatamente
+esse caso. Pelo mesmo motivo, a role `common` espera jobs do apt em andamento
+antes de instalar qualquer pacote.
+
 ---
 
 ## ADR-009 — Testes em três camadas
@@ -154,7 +161,17 @@ quando há reboot pendente. Em frotas atrás de load balancer, ative
 |---|---|---|---|
 | Estática | yamllint, ansible-lint (perfil `production`) | O código segue boas práticas? | todo push/PR |
 | Integração | Molecule + Docker (22.04 e 24.04) | O playbook converge, é idempotente e o **estado efetivo** está correto? | todo push/PR |
-| Ponta a ponta | GitHub Actions em VM real + Lynis | O score de segurança **realmente** sobe numa VM com kernel, systemd e auditd reais? | push na `main`, semanal |
+| Ponta a ponta (VM + SSH) | VM Ubuntu real (LXD/KVM) dentro do runner, com os `make` do guia | O fluxo do usuário funciona por SSH (bootstrap, troca de porta, reboot) e o score **realmente** sobe? | PR, push na `main`, semanal |
+| Ponta a ponta (local) | Playbook no próprio runner + Lynis | Idempotência e `--check` conforme com kernel e systemd reais? | push na `main`, semanal |
 
 Containers não têm auditd, GRUB nem netfilter próprio. Por isso essas partes são
 verificadas no nível de arquivo no Molecule e no nível de comportamento no E2E.
+
+**O E2E em VM pagou o investimento antes do merge.** Ele achou seis problemas que
+nenhuma outra camada pegaria:
+- `--check` falhando em host de fábrica;
+- drift falso após o reboot (simulação de remoção de regra ufw inexistente);
+- apport reescrevendo `fs.suid_dumpable` no boot;
+- corrida de lock do apt com o `apt-daily`;
+- `acct` sem suporte no kernel `linux-kvm`;
+- `sources.list` reescrito pelo cloud-init no primeiro acesso.

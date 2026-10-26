@@ -22,6 +22,9 @@ sysctl_hardening_params:
   - { name: fs.protected_symlinks, value: 1, cis: "Lynis KRNL-6000" }
   - { name: fs.protected_fifos, value: 2, cis: "Lynis KRNL-6000" }
   - { name: fs.protected_regular, value: 2, cis: "Lynis KRNL-6000" }
+  # Impede carregar line disciplines de TTY sob demanda (vetor de vários CVEs de kernel).
+  - { name: dev.tty.ldisc_autoload, value: 0, cis: "Lynis KRNL-6000", optional: true }
+  - { name: kernel.core_uses_pid, value: 1, cis: "Lynis KRNL-6000" }
   # --- Rede (CIS 3.3.x) ---
   - { name: net.ipv4.ip_forward, value: "{{ sysctl_hardening_ip_forward | bool | int }}", cis: "3.3.1" }
   - { name: net.ipv6.conf.all.forwarding, value: "{{ sysctl_hardening_ip_forward | bool | int }}", cis: "3.3.1" }
