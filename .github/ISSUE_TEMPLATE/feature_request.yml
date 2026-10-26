@@ -1,0 +1,23 @@
+---
+name: ✨ Novo controle ou melhoria
+description: Sugira um controle de hardening, suporte a outra versão ou melhoria
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual risco ou problema isso resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: O que o kit deveria fazer. Se for um controle, cite o item do CIS e/ou o teste do Lynis.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs
+      description: Pode quebrar algum ambiente? Deveria ser opcional (variável) ou padrão?

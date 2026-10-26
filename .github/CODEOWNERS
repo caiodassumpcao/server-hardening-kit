@@ -1,0 +1,7 @@
+# Revisão obrigatória do mantenedor em tudo (efetivo com a proteção de branch
+# "Require review from Code Owners"). Áreas sensíveis listadas explicitamente.
+*                     @caiodassumpcao
+/roles/ssh_hardening/ @caiodassumpcao
+/roles/users/         @caiodassumpcao
+/roles/ufw/           @caiodassumpcao
+/.github/             @caiodassumpcao

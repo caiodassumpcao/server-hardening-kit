@@ -5,6 +5,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-26
+
+Destaques: E2E do fluxo SSH completo em VMs Ubuntu reais, Lynis **61 → 80**
+(22.04) e **61 → 79** (24.04), role `password_policy` e segurança da cadeia de
+suprimentos do repositório (Actions por SHA, gitleaks, OpenSSF Scorecard).
+
 ### Alterado
 - README reorganizado como visão geral; passo a passo, receitas, recuperação de
   lockout e troubleshooting movidos para `docs/GUIA.md`. README em inglês com a
@@ -30,6 +36,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   `dev.tty.ldisc_autoload=0` e `kernel.core_uses_pid=1`; `AllowTcpForwarding no` explícito.
 - Molecule roda `--check` num host "de fábrica" antes do converge.
 - `CONTRIBUTING.md`.
+- Segurança da cadeia de suprimentos: Actions fixadas por SHA de commit,
+  `persist-credentials: false` nos checkouts, varredura de segredos com gitleaks
+  em todo o histórico e OpenSSF Scorecard (badge e Code scanning).
+- Workflow de release: tag `vX.Y.Z` publica a GitHub Release com as notas do CHANGELOG.
+- Templates de issue (bug e melhoria), de pull request e `CODEOWNERS`.
 
 ### Corrigido
 - Dev Container: `ANSIBLE_CONFIG` explícito. Pastas do Windows montadas no

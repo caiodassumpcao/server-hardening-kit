@@ -1,0 +1,50 @@
+---
+name: 🐛 Bug
+description: Algo não funcionou como documentado
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar! **Vulnerabilidades não devem ser abertas aqui**: siga o [SECURITY.md](https://github.com/caiodassumpcao/server-hardening-kit/blob/main/SECURITY.md).
+        Antes de enviar, confira o [troubleshooting do guia](https://github.com/caiodassumpcao/server-hardening-kit/blob/main/docs/GUIA.md#-troubleshooting).
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu?
+      description: Comportamento observado e o que você esperava.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Como reproduzir
+      description: Comandos `make` executados e variáveis relevantes do inventário (sem segredos).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Saída relevante
+      description: Trecho do output do Ansible (de preferência com `ARGS="-vvv"`). Remova IPs e hostnames se preferir.
+      render: text
+  - type: dropdown
+    id: target
+    attributes:
+      label: Ubuntu do servidor alvo
+      options: ["22.04", "24.04", "Outro"]
+    validations:
+      required: true
+  - type: dropdown
+    id: controller
+    attributes:
+      label: Controller
+      options: [Linux, macOS, Windows (WSL2), Windows (Dev Container), CI]
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versões
+      description: Saída de `ansible --version | head -1` e commit/tag do kit.

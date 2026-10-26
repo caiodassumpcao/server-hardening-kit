@@ -35,6 +35,20 @@ make test        # Molecule: converge + idempotência + verify
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/)
   (`feat:`, `fix:`, `docs:`, `test:`, `ci:`, `build:`).
 
+## Dependências
+
+- O Dependabot atualiza `requirements.txt` e as GitHub Actions (fixadas por SHA).
+- **Não** cobre o [`requirements-fallback.yml`](requirements-fallback.yml) (coleções
+  vindas do GitHub quando o Galaxy está fora): ao mudar versões em
+  `requirements.yml`, atualize as tags dele também.
+
+## Release
+
+1. Mova o conteúdo de `## [Unreleased]` do `CHANGELOG.md` para `## [X.Y.Z] - AAAA-MM-DD`.
+2. Após o merge na `main`: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
+3. O workflow [`release.yml`](.github/workflows/release.yml) publica a GitHub
+   Release com as notas dessa seção.
+
 ## Segurança
 
 Não abra issue pública para vulnerabilidades: siga o [SECURITY.md](SECURITY.md).

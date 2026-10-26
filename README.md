@@ -8,6 +8,7 @@
 [![E2E VM](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-vm.yml)
 [![E2E Lynis](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml/badge.svg)](https://github.com/caiodassumpcao/server-hardening-kit/actions/workflows/e2e-lynis.yml)
 ![Lynis](https://img.shields.io/badge/Lynis-61%20%E2%86%92%2080-success)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/caiodassumpcao/server-hardening-kit/badge)](https://scorecard.dev/viewer/?uri=github.com/caiodassumpcao/server-hardening-kit)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)
 ![Ansible](https://img.shields.io/badge/ansible--core-2.17%2B-EE0000?logo=ansible&logoColor=white)
 ![ansible-lint](https://img.shields.io/badge/ansible--lint-production-success)
