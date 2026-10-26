@@ -5,6 +5,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-26
+
+Destaques: E2E do fluxo SSH completo em VMs Ubuntu reais, Lynis **61 → 80**
+(22.04) e **61 → 79** (24.04), role `password_policy` e segurança da cadeia de
+suprimentos do repositório (Actions por SHA, gitleaks, OpenSSF Scorecard).
+
 ### Alterado
 - README reorganizado como visão geral; passo a passo, receitas, recuperação de
   lockout e troubleshooting movidos para `docs/GUIA.md`. README em inglês com a
